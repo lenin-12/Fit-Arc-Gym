@@ -1,0 +1,230 @@
+.hero {
+  display: flex;
+  justify-content: space-between;
+  position: relative;
+  overflow: hidden;
+}
+
+.hero-blur {
+  width: 26rem;
+  height: 32rem;
+  left: -2rem;
+  top: -2rem;
+  background: rgba(255, 214, 10, 0.12);
+  filter: blur(160px);
+}
+
+.left-h {
+  padding: 2rem 2.5rem;
+  padding-top: 5.2rem;
+  flex: 3;
+  display: flex;
+  gap: 2.2rem;
+  flex-direction: column;
+}
+
+.right-h {
+  flex: 1;
+  position: relative;
+  background: radial-gradient(circle at 60% 40%, rgba(255, 214, 10, 0.08) 0%, transparent 70%);
+}
+
+.the-best-ad {
+  margin-top: 2rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4rem;
+  width: fit-content;
+  padding: 12px 20px;
+  text-transform: uppercase;
+  color: white;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.the-best-ad > span {
+  z-index: 2;
+}
+
+.the-best-ad > div {
+  position: absolute;
+  background: linear-gradient(135deg, #FFD60A, #FFE347);
+  width: 5.4rem;
+  height: 80%;
+  left: 8px;
+  border-radius: 3rem;
+  z-index: 1;
+}
+
+.hero-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+  text-transform: uppercase;
+  font-size: 4.2rem;
+  font-weight: 800;
+  color: white;
+  letter-spacing: -1px;
+  line-height: 1.1;
+}
+
+.hero-text > div:nth-of-type(3) {
+  font-size: 1rem;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0px;
+  width: 85%;
+  color: #9c9c9c;
+  line-height: 1.6;
+}
+
+.figures {
+  display: flex;
+  gap: 2.5rem;
+}
+
+.figures > div {
+  display: flex;
+  flex-direction: column;
+}
+
+.figures > div > span:nth-of-type(1) {
+  color: white;
+  font-size: 2.2rem;
+  font-weight: 800;
+}
+
+.figures > div > span:nth-of-type(2) {
+  color: #9c9c9c;
+  text-transform: uppercase;
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-top: 0.2rem;
+}
+
+.hero-buttons {
+  display: flex;
+  gap: 1.2rem;
+  margin-top: 0.5rem;
+}
+
+.glass-card-widget {
+  background: rgba(18, 20, 26, 0.75) !important;
+  backdrop-filter: blur(16px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4), 0 0 20px rgba(255, 214, 10, 0.1) !important;
+  border-radius: 18px !important;
+}
+
+.heart-rate {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  width: fit-content;
+  padding: 1.2rem 1.4rem;
+  align-items: flex-start;
+  position: absolute;
+  right: 4rem;
+  top: 7rem;
+  z-index: 5;
+}
+
+.hero-image {
+  position: absolute;
+  top: 9rem;
+  right: 8rem;
+  width: 23rem;
+  z-index: 4;
+  filter: drop-shadow(0 15px 35px rgba(0,0,0,0.5));
+}
+
+.hero-image-back {
+  position: absolute;
+  top: 4rem;
+  right: 20rem;
+  z-index: 2;
+  width: 15rem;
+}
+
+.calories {
+  display: flex;
+  align-items: center;
+  gap: 1.2rem;
+  padding: 1.2rem 1.6rem;
+  width: fit-content;
+  position: absolute;
+  top: 32rem;
+  right: 28rem;
+  z-index: 5;
+}
+
+@media screen and (max-width: 768px) {
+  .hero {
+    flex-direction: column;
+  }
+  .hero-blur {
+    width: 14rem;
+  }
+  .the-best-ad {
+    margin-top: 0;
+    font-size: 0.75rem;
+    align-self: center;
+    transform: scale(0.9);
+  }
+  .hero-text {
+    font-size: 2.5rem;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
+  .hero-text > div:nth-of-type(3) {
+    font-size: 0.9rem;
+    width: 100%;
+    text-align: center;
+  }
+  .hero-buttons {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .figures {
+    justify-content: center;
+    gap: 1.5rem;
+  }
+  .figures > div > span:nth-of-type(1) {
+    font-size: 1.6rem;
+  }
+  .right-h {
+    position: relative;
+    background: none;
+    min-height: 420px;
+  }
+  .heart-rate {
+    left: 1rem;
+    top: 2rem;
+    right: auto;
+  }
+  .hero-image {
+    position: relative;
+    width: 16rem;
+    left: 50%;
+    transform: translateX(-50%);
+    top: 3rem;
+  }
+  .hero-image-back {
+    width: 14rem;
+    left: 2rem;
+    top: 1rem;
+  }
+  .calories {
+    position: relative;
+    top: 4rem;
+    left: 1rem;
+    right: auto;
+  }
+}

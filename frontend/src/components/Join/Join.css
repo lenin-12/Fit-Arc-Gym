@@ -1,0 +1,85 @@
+.Join {
+  display: flex;
+  padding: 4rem 2.5rem;
+  gap: 4rem;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.left-j {
+  color: white;
+  font-size: 3rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  position: relative;
+  letter-spacing: -1px;
+  line-height: 1.15;
+}
+
+.left-j > hr {
+  position: absolute;
+  width: 10.5rem;
+  border: 2px solid var(--accent, #FFD60A);
+  border-radius: 20%;
+  margin: -10px 0;
+}
+
+.left-j > div {
+  display: flex;
+  gap: 1rem;
+}
+
+.right-j {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex: 1;
+  max-width: 540px;
+}
+
+.glass-card-join {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  background: rgba(255, 255, 255, 0.03) !important;
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 20px !important;
+  padding: 0.8rem 1rem 0.8rem 1.4rem !important;
+}
+
+.glass-card-join input {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #ffffff;
+  font-size: 0.95rem;
+  width: 100%;
+}
+
+.glass-card-join input::placeholder {
+  color: #9c9c9c;
+}
+
+@media screen and (max-width: 768px) {
+  .Join {
+    flex-direction: column;
+    gap: 2rem;
+    padding: 2rem 1.5rem;
+  }
+  .left-j {
+    font-size: 2rem;
+    align-items: center;
+    text-align: center;
+  }
+  .left-j > div {
+    justify-content: center;
+  }
+  .glass-card-join {
+    flex-direction: column;
+    padding: 1.2rem !important;
+  }
+}

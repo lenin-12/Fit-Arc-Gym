@@ -1,0 +1,99 @@
+.Programs {
+  display: flex;
+  flex-direction: column;
+  gap: 3rem;
+  padding: 4rem 2.5rem;
+}
+
+.programs-header {
+  display: flex;
+  gap: 3rem;
+  font-weight: 800;
+  font-size: 3rem;
+  justify-content: center;
+  color: white;
+  text-transform: uppercase;
+  letter-spacing: -1px;
+}
+
+.program-categories {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1.8rem;
+}
+
+.glass-card-program {
+  background: rgba(255, 255, 255, 0.03) !important;
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 20px !important;
+  padding: 2.2rem 1.8rem !important;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 1.2rem;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.25s ease,
+              box-shadow 0.25s ease !important;
+  cursor: pointer;
+}
+
+.glass-card-program:hover {
+  transform: translateY(-5px);
+  border-color: var(--accent, #FFD60A) !important;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.4), 0 0 25px rgba(255, 214, 10, 0.2) !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+}
+
+.category-icon-wrap > svg {
+  width: 2.4rem;
+  height: 2.4rem;
+  fill: var(--accent, #FFD60A);
+}
+
+.category-heading {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.category-details {
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--text-secondary, #B3B3B3);
+}
+
+.join-now {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: #ffffff;
+  margin-top: 0.5rem;
+  transition: color 0.2s ease;
+}
+
+.glass-card-program:hover .join-now {
+  color: var(--accent, #FFD60A);
+}
+
+.join-now > img {
+  width: 1rem;
+  transition: transform 0.2s ease;
+}
+
+.glass-card-program:hover .join-now > img {
+  transform: translateX(4px);
+}
+
+@media screen and (max-width: 768px) {
+  .programs-header {
+    flex-direction: column;
+    gap: 0.8rem;
+    font-size: 2rem;
+    align-items: center;
+    text-align: center;
+  }
+}
