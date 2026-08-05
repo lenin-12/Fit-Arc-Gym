@@ -113,12 +113,7 @@ const TopNavbar = ({ onToggleMobileMenu }) => {
             style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer' }}
             onClick={() => setDropdownOpen(!dropdownOpen)}
           >
-            <img
-              src={user?.profilePicture || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80'}
-              alt="Avatar"
-              className="user-avatar"
-            />
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
+             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <span style={{ fontWeight: 700, fontSize: '0.88rem' }}>{user?.name || 'Athlete'}</span>
               <span style={{ fontSize: '0.72rem', color: '#9c9c9c' }}>{user?.fitnessGoal || 'Gain Muscle'}</span>
             </div>
