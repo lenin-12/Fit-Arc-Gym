@@ -26,3 +26,5 @@ yarn-error.log*
 frontend/src/pages/SettingsPage.jsx
 archive/
 
+backend/test_mock_finish.js
+backend/test_streak.js
