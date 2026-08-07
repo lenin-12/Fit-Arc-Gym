@@ -1,8 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
 const AuthContext = createContext();
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
+const API_BASE_URL = `${import.meta.env.VITE_API_URL || 'http://localhost:5001'}/api`;
 
 const isTokenValid = (tokenStr) => {
   if (!tokenStr) return false;
