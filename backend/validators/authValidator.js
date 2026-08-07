@@ -8,12 +8,13 @@ const validatePassword = (password) => {
   return typeof password === 'string' && password.length >= 6;
 };
 
-const validateRegisterStep1 = ({ name, email, mobile, password, confirmPassword }) => {
+const validateRegisterStep1 = ({ name, email, mobile, password, confirmPassword, firstSchoolName }) => {
   const errors = [];
 
   if (!name || name.trim() === '') errors.push('Full Name is required');
   if (!email || !validateEmail(email)) errors.push('Valid Email Address is required');
   if (!mobile || mobile.trim().length < 7) errors.push('Valid Mobile Number is required');
+  if (!firstSchoolName || firstSchoolName.trim() === '') errors.push('First school name is required');
   if (!password || !validatePassword(password)) errors.push('Password must be at least 6 characters');
   if (password !== confirmPassword) errors.push('Passwords do not match');
 

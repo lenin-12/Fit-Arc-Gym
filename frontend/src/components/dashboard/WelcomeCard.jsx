@@ -11,14 +11,14 @@ const WelcomeCard = ({ user, workoutData, todayNutrition, planData }) => {
   const isProfileIncomplete = isHeightMissing || isWeightMissing || isGoalMissing;
 
   const daysRemaining = planData?.remainingDays ?? 0;
-  const isExpiringSoon = daysRemaining <= 5 && planData?.status !== 'Expired';
+  const isExpiringSoon = planData?.currentPlan !== 'basic' && daysRemaining <= 5 && planData?.status !== 'Expired';
   const planDisplay = planData?.currentPlan
     ? planData.currentPlan === 'basic'
       ? 'Basic Plan'
       : planData.currentPlan === 'pro_ai_vip'
       ? 'Pro AI VIP'
       : 'Premium Plan'
-    : 'Premium Plan';
+    : (user?.currentPlan === 'basic' ? 'Basic Plan' : user?.currentPlan === 'pro_ai_vip' ? 'Pro AI VIP' : 'Premium Plan');
 
   const todayStr = new Date().toLocaleDateString('en-US', {
     weekday: 'short',

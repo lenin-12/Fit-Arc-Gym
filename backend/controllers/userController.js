@@ -4,6 +4,8 @@ const { sendSuccess, sendError } = require('../utils/apiResponse');
 const mockUsersStore = require('../services/mockDbStore');
 const { calculateMacroTargets } = require('../utils/macroCalculator');
 const { calculateTodayNutrition } = require('../services/nutritionService');
+const fs = require('fs');
+const cloudinary = require('../config/cloudinary');
 
 /**
  * Update Profile Biometrics & Settings
@@ -330,7 +332,43 @@ const uploadProfilePicture = async (req, res) => {
     if (!req.file) return sendError(res, 'No image file uploaded', 400);
 
     const userId = req.user._id || req.user.id;
-    const imagePath = `/uploads/${req.file.filename}`;
+    let imagePath = `/uploads/${req.file.filename}`;
+
+    // Upload to Cloudinary if credentials are provided in .env
+    const hasCloudinary = process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET;
+
+    if (hasCloudinary) {
+      try {
+        const result = await cloudinary.uploader.upload(req.file.path, {
+          folder: 'fit-arc-gym/avatars',
+          use_filename: true,
+          unique_filename: true
+        });
+        imagePath = result.secure_url;
+
+        // Delete the temporary local file
+        if (fs.existsSync(req.file.path)) {
+          fs.unlinkSync(req.file.path);
+        }
+      } catch (uploadErr) {
+        console.error('Cloudinary upload error:', uploadErr);
+        if (process.env.NODE_ENV === 'production') {
+          // Clean up local file even on failure
+          if (fs.existsSync(req.file.path)) {
+            fs.unlinkSync(req.file.path);
+          }
+          return sendError(res, 'Failed to upload profile picture to cloud storage.', 500);
+        }
+      }
+    } else {
+      if (process.env.NODE_ENV === 'production') {
+        // Enforce Cloudinary in production - do not allow local disk fallback
+        if (fs.existsSync(req.file.path)) {
+          fs.unlinkSync(req.file.path);
+        }
+        return sendError(res, 'Cloud storage is not configured. Profile picture upload is disabled in production.', 500);
+      }
+    }
 
     let user = null;
     try {
@@ -344,7 +382,16 @@ const uploadProfilePicture = async (req, res) => {
       user = mockUsersStore[userId];
     }
 
-    return sendSuccess(res, 'Profile picture uploaded successfully!', { profilePicture: imagePath });
+    const userPayload = user ? (typeof user.toJSON === 'function' ? user.toJSON() : { ...user }) : null;
+    if (userPayload) {
+      delete userPayload.password;
+      delete userPayload.hashedPassword;
+    }
+
+    return sendSuccess(res, 'Profile picture uploaded successfully!', {
+      profilePicture: imagePath,
+      user: userPayload
+    });
   } catch (error) {
     return sendError(res, error.message || 'Error uploading profile picture', 500);
   }

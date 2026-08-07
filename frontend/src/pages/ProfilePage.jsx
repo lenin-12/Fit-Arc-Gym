@@ -30,6 +30,17 @@ const ProfilePage = () => {
   const { user, updateUserProfileState, authFetch, API_BASE_URL, token } = useAuth();
   const navigate = useNavigate();
 
+  const getAvatarUrl = (path) => {
+    if (!path) return '';
+    if (path.startsWith('http://') || path.startsWith('https://')) {
+      return path;
+    }
+    const serverRoot = API_BASE_URL && API_BASE_URL.endsWith('/api') 
+      ? API_BASE_URL.slice(0, -4) 
+      : (API_BASE_URL || 'http://localhost:5001');
+    return `${serverRoot}${path}`;
+  };
+
   const [isEditing, setIsEditing] = useState(false);
 
   // Form State
@@ -170,7 +181,7 @@ const ProfilePage = () => {
     if (!file) return;
 
     const formData = new FormData();
-    formData.append('avatar', file);
+    formData.append('profilePicture', file);
 
     setSaving(true);
     try {
@@ -298,7 +309,7 @@ const ProfilePage = () => {
             <div style={{ position: 'relative' }}>
               {user?.profilePicture ? (
                 <img
-                  src={user.profilePicture}
+                  src={getAvatarUrl(user.profilePicture)}
                   alt={user.name}
                   style={{ width: '85px', height: '85px', borderRadius: '50%', objectFit: 'cover', border: '1px solid #262626' }}
                 />
@@ -319,7 +330,7 @@ const ProfilePage = () => {
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                 <h1 style={{ fontSize: '1.6rem', fontWeight: 800, color: '#FFFFFF', margin: 0 }}>{user?.name || 'Athlete'}</h1>
                 <span style={{ background: '#262626', border: '1px solid #3A3A3A', color: '#FFFFFF', fontSize: '0.72rem', fontWeight: 700, padding: '0.2rem 0.65rem', borderRadius: '12px' }}>
-                  {(user?.currentPlan || 'PRO AI VIP').toUpperCase()}
+                  {(user?.currentPlan || user?.plan || 'basic').toUpperCase()}
                 </span>
               </div>
               <p style={{ color: '#B3B3B3', fontSize: '0.88rem', margin: '0.25rem 0 0 0' }}>{user?.email || 'user@fitclub.ai'}</p>
@@ -630,7 +641,7 @@ const ProfilePage = () => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ color: '#888888', fontSize: '0.85rem', fontWeight: 500 }}>Current Plan</span>
-                <span style={{ color: '#FFFFFF', fontSize: '0.85rem', fontWeight: 700 }}>{user?.currentPlan || 'PRO AI VIP'}</span>
+                <span style={{ color: '#FFFFFF', fontSize: '0.85rem', fontWeight: 700 }}>{user?.currentPlan || user?.plan || 'basic'}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ color: '#888888', fontSize: '0.85rem', fontWeight: 500 }}>Email Status</span>

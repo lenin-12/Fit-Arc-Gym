@@ -2,8 +2,9 @@ const User = require('../models/User');
 const { generateToken } = require('../utils/jwt');
 const { hashPassword, comparePassword } = require('../utils/hashPassword');
 const { sendSuccess, sendError } = require('../utils/apiResponse');
-const { validateLogin, validateRegisterStep1 } = require('../validators/authValidator');
+const { validateLogin, validateRegisterStep1, validateEmail } = require('../validators/authValidator');
 const mockUsersStore = require('../services/mockDbStore');
+const checkAndResetExpiredPlan = require('../utils/planExpiryCheck');
 const { calculateMacroTargets } = require('../utils/macroCalculator');
 const { calculateTodayNutrition } = require('../services/nutritionService');
 
@@ -14,6 +15,7 @@ const createDefaultUserData = (override = {}) => {
     name: override.name || 'Alex Morgan',
     email: override.email ? override.email.toLowerCase() : 'user@fitarcgym.com',
     mobile: override.mobile || '+1 987 654 3210',
+    firstSchoolName: override.firstSchoolName || 'Fit Arc Academy',
     gender: override.gender || 'Male',
     age: Number(override.age) || 26,
     height: Number(override.height) || 180,
@@ -62,6 +64,7 @@ const registerUser = async (req, res) => {
       mobile,
       password,
       confirmPassword,
+      firstSchoolName,
       gender,
       age,
       height,
@@ -71,7 +74,7 @@ const registerUser = async (req, res) => {
     } = req.body;
 
     // Validate Step 1
-    const validation = validateRegisterStep1({ name, email, mobile, password, confirmPassword });
+    const validation = validateRegisterStep1({ name, email, mobile, password, confirmPassword, firstSchoolName });
     if (!validation.isValid) {
       return sendError(res, validation.errors.join(', '), 400, validation.errors);
     }
@@ -110,6 +113,7 @@ const registerUser = async (req, res) => {
         email: normalizedEmail,
         mobile,
         password: hashedPassword,
+        firstSchoolName,
         gender: gender || 'Male',
         age: Number(age) || 0,
         height: Number(height) || 0,
@@ -137,6 +141,7 @@ const registerUser = async (req, res) => {
         name,
         email: normalizedEmail,
         mobile,
+        firstSchoolName,
         gender,
         age,
         height,
@@ -232,6 +237,9 @@ const loginUser = async (req, res) => {
       }
     }
 
+    // Automatically check and reset plan if expired
+    await checkAndResetExpiredPlan(user);
+
     const token = generateToken(user._id || user.id);
     const userPayload = typeof user.toJSON === 'function' ? user.toJSON() : { ...user };
     delete userPayload.password;
@@ -250,105 +258,63 @@ const loginUser = async (req, res) => {
 /**
  * FORGOT PASSWORD - Generate OTP
  */
+/**
+ * FORGOT PASSWORD - Verify Security Question & Reset Password
+ */
 const forgotPassword = async (req, res) => {
   try {
-    const { email } = req.body;
+    const { email, firstSchoolName, newPassword } = req.body;
     if (!email) return sendError(res, 'Email address is required', 400);
-
-    const normalizedEmail = email.toLowerCase().trim();
-    const otp = Math.floor(100000 + Math.random() * 900000).toString(); // 6 digit OTP
-
-    let user = null;
-    try {
-      user = await User.findOne({ email: normalizedEmail });
-    } catch (e) {
-      user = null;
-    }
-
-    if (user) {
-      user.resetPasswordOTP = otp;
-      user.resetPasswordExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
-      await user.save();
-    } else {
-      // Store in mock memory
-      if (!mockUsersStore[normalizedEmail]) {
-        mockUsersStore[normalizedEmail] = createDefaultUserData({ email: normalizedEmail });
-      }
-      mockUsersStore[normalizedEmail].resetPasswordOTP = otp;
-      mockUsersStore[normalizedEmail].resetPasswordExpires = new Date(Date.now() + 10 * 60 * 1000);
-    }
-
-    // Return response (including OTP for effortless testing)
-    return sendSuccess(res, `OTP sent to ${normalizedEmail}. For demo testing, your OTP is: ${otp}`, {
-      otpSent: true,
-      demoOtp: otp
-    });
-  } catch (error) {
-    return sendError(res, error.message || 'Server error generating OTP', 500);
-  }
-};
-
-/**
- * VERIFY OTP
- */
-const verifyOTP = async (req, res) => {
-  try {
-    const { email, otp } = req.body;
-    if (!email || !otp) return sendError(res, 'Email and OTP are required', 400);
-
-    const normalizedEmail = email.toLowerCase().trim();
-    let user = null;
-    try {
-      user = await User.findOne({ email: normalizedEmail });
-    } catch (e) {
-      user = mockUsersStore[normalizedEmail];
-    }
-
-    const storedOtp = user ? (user.resetPasswordOTP || mockUsersStore[normalizedEmail]?.resetPasswordOTP) : null;
-
-    if (!storedOtp || storedOtp !== otp.trim()) {
-      return sendError(res, 'Invalid or expired OTP code', 400);
-    }
-
-    return sendSuccess(res, 'OTP verified successfully!');
-  } catch (error) {
-    return sendError(res, error.message || 'Server error verifying OTP', 500);
-  }
-};
-
-/**
- * RESET PASSWORD
- */
-const resetPassword = async (req, res) => {
-  try {
-    const { email, otp, newPassword } = req.body;
-    if (!email || !otp || !newPassword) {
-      return sendError(res, 'Email, OTP, and new password are required', 400);
-    }
+    if (!firstSchoolName) return sendError(res, 'First school name is required', 400);
+    if (!newPassword) return sendError(res, 'New password is required', 400);
 
     if (newPassword.length < 6) {
       return sendError(res, 'Password must be at least 6 characters long', 400);
     }
 
     const normalizedEmail = email.toLowerCase().trim();
-    const hashedPassword = await hashPassword(newPassword);
+    if (!validateEmail(normalizedEmail)) {
+      return sendError(res, 'Valid email address is required', 400);
+    }
 
     let user = null;
     try {
       user = await User.findOne({ email: normalizedEmail });
-      if (user) {
-        user.password = hashedPassword;
-        user.resetPasswordOTP = null;
-        user.resetPasswordExpires = null;
-        await user.save();
-      }
     } catch (e) {
       user = null;
     }
 
-    if (!user && mockUsersStore[normalizedEmail]) {
-      mockUsersStore[normalizedEmail].hashedPassword = hashedPassword;
-      mockUsersStore[normalizedEmail].resetPasswordOTP = null;
+    if (!user) {
+      // Check in-memory mock store
+      user = mockUsersStore[normalizedEmail] || Object.values(mockUsersStore).find(u => u.email === normalizedEmail);
+    }
+
+    if (!user) {
+      return sendError(res, 'Account not found. Please check the email address or register.', 404);
+    }
+
+    // Verify security question (case insensitive trim comparison)
+    const dbSchool = (user.firstSchoolName || '').trim().toLowerCase();
+    const inputSchool = firstSchoolName.trim().toLowerCase();
+
+    if (!dbSchool || dbSchool !== inputSchool) {
+      return sendError(res, 'Incorrect answer to the security question.', 400);
+    }
+
+    // Hash the new password
+    const hashedPassword = await hashPassword(newPassword);
+
+    // Save the new password
+    if (user.save && typeof user.save === 'function') {
+      user.password = hashedPassword;
+      user.resetPasswordOTP = null;
+      user.resetPasswordExpires = null;
+      await user.save();
+    } else {
+      user.hashedPassword = hashedPassword;
+      user.resetPasswordOTP = null;
+      user.resetPasswordExpires = null;
+      mockUsersStore[normalizedEmail] = user;
     }
 
     return sendSuccess(res, 'Password reset successful! You can now log in with your new password.');
@@ -376,7 +342,5 @@ module.exports = {
   registerUser,
   loginUser,
   forgotPassword,
-  verifyOTP,
-  resetPassword,
   getMe
 };

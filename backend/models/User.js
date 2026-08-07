@@ -163,6 +163,10 @@ const userSchema = new mongoose.Schema(
       type: [String],
       default: ['First Workout Completed', '7-Day Streak', 'Hydration Hero', 'Goal Setter']
     },
+    firstSchoolName: {
+      type: String,
+      default: ''
+    },
     resetPasswordOTP: {
       type: String,
       default: null

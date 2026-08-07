@@ -145,7 +145,7 @@ const PrivateLayout = () => {
         </aside>
 
         {/* 4. MAIN CONTENT: Independent scrollable area */}
-        <main className="dash-main" style={{ flex: 1, height: '100%', overflowY: 'auto', backgroundColor: 'transparent' }}>
+        <main className="dash-main" style={{ flex: 1, height: '100%', overflowY: 'auto', overflowX: 'hidden', minWidth: 0, backgroundColor: 'transparent' }}>
           <div className="dash-content">
             <Outlet />
           </div>

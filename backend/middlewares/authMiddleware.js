@@ -1,6 +1,7 @@
 const { verifyToken } = require('../utils/jwt');
 const User = require('../models/User');
 const { sendError } = require('../utils/apiResponse');
+const checkAndResetExpiredPlan = require('../utils/planExpiryCheck');
 
 // In-memory user database store fallback if MongoDB is offline or in local dev mode
 const mockUsersStore = require('../services/mockDbStore');
@@ -31,6 +32,9 @@ const protect = async (req, res, next) => {
       if (!req.user) {
         return sendError(res, 'User no longer exists', 401);
       }
+
+      // Automatically reset plan if expired
+      await checkAndResetExpiredPlan(req.user);
 
       next();
     } catch (error) {

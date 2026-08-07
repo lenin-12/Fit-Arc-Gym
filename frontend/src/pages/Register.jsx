@@ -17,6 +17,7 @@ const Register = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState(initialEmail);
   const [mobile, setMobile] = useState('');
+  const [firstSchoolName, setFirstSchoolName] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
@@ -77,12 +78,17 @@ const Register = () => {
       setError('Full Name is required.');
       return;
     }
-    if (!email || !email.includes('@')) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email || !emailRegex.test(email)) {
       setError('Please enter a valid email address.');
       return;
     }
     if (!mobile || mobile.trim().length < 7) {
       setError('Please enter a valid mobile number.');
+      return;
+    }
+    if (!firstSchoolName.trim()) {
+      setError('First school name is required.');
       return;
     }
     if (!password || password.length < 6) {
@@ -112,6 +118,7 @@ const Register = () => {
       mobile,
       password,
       confirmPassword,
+      firstSchoolName,
       gender,
       age: Number(age),
       height: Number(height),
@@ -223,6 +230,21 @@ const Register = () => {
                   placeholder="+91 XXXXX XXXXX"
                   value={mobile}
                   onChange={(e) => setMobile(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">First School Name</label>
+              <div className="input-container">
+                <ShieldCheck className="input-icon" size={18} />
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="Enter your first school name"
+                  value={firstSchoolName}
+                  onChange={(e) => setFirstSchoolName(e.target.value)}
                   required
                 />
               </div>

@@ -1,14 +1,26 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { Search, Bell, User, Settings, LogOut, Crown, ChevronDown, Menu } from 'lucide-react';
+import { Search, Bell, User, Settings, LogOut, Crown, ChevronDown, Menu, ArrowRight } from 'lucide-react';
 import BrandLogo from '../BrandLogo';
 
 const TopNavbar = ({ onToggleMobileMenu }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [notifCount, setNotifCount] = useState(2);
+  const [notifDropdownOpen, setNotifDropdownOpen] = useState(false);
+  const [notifRead, setNotifRead] = useState(false);
+
+  const getDaysRemaining = () => {
+    if (!user?.planExpiryDate || user?.currentPlan === 'basic') return null;
+    const diffTime = new Date(user.planExpiryDate) - new Date();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+  };
+
+  const daysLeft = getDaysRemaining();
+  const isExpiring = daysLeft !== null && daysLeft <= 4 && daysLeft > 0;
+  const notifCount = isExpiring && !notifRead ? 1 : 0;
 
   const handleLogout = () => {
     logout();
@@ -68,8 +80,12 @@ const TopNavbar = ({ onToggleMobileMenu }) => {
         </Link>
 
         {/* Notification Icon */}
-        <div style={{ position: 'relative', cursor: 'pointer' }} onClick={() => setNotifCount(0)}>
+        <div style={{ position: 'relative' }}>
           <div
+            onClick={() => {
+              setNotifDropdownOpen(!notifDropdownOpen);
+              setNotifRead(true);
+            }}
             style={{
               width: '38px',
               height: '38px',
@@ -79,13 +95,18 @@ const TopNavbar = ({ onToggleMobileMenu }) => {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#d9d9d9'
+              color: '#d9d9d9',
+              cursor: 'pointer'
             }}
           >
             <Bell size={18} />
           </div>
           {notifCount > 0 && (
             <span
+              onClick={() => {
+                setNotifDropdownOpen(!notifDropdownOpen);
+                setNotifRead(true);
+              }}
               style={{
                 position: 'absolute',
                 top: '-2px',
@@ -99,11 +120,65 @@ const TopNavbar = ({ onToggleMobileMenu }) => {
                 borderRadius: '50%',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center'
+                justifyContent: 'center',
+                cursor: 'pointer'
               }}
             >
               {notifCount}
             </span>
+          )}
+
+          {notifDropdownOpen && (
+            <div
+              style={{
+                position: 'absolute',
+                right: 0,
+                top: '52px',
+                width: '280px',
+                background: 'rgba(20, 22, 28, 0.95)',
+                backdropFilter: 'blur(20px)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                borderRadius: '16px',
+                padding: '1rem',
+                boxShadow: '0 15px 35px rgba(0,0,0,0.6)',
+                zIndex: 1000,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.8rem'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '0.5rem' }}>
+                <span style={{ fontWeight: 800, fontSize: '0.9rem', color: '#FFFFFF' }}>Notifications</span>
+                {isExpiring && !notifRead && (
+                  <span style={{ fontSize: '0.72rem', color: '#FFD60A', fontWeight: 600 }}>1 New</span>
+                )}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', maxHeight: '200px', overflowY: 'auto' }}>
+                {isExpiring ? (
+                  <div style={{ background: 'rgba(255,214,10,0.06)', border: '1px solid rgba(255,214,10,0.12)', borderRadius: '10px', padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#FFD60A', fontWeight: 700, fontSize: '0.82rem' }}>
+                      <Crown size={14} />
+                      <span>Subscription Alert</span>
+                    </div>
+                    <p style={{ margin: 0, fontSize: '0.78rem', color: '#d9d9d9', lineHeight: '1.4' }}>
+                      Your plan is expiring in <strong style={{ color: '#FFFFFF' }}>{daysLeft} day{daysLeft === 1 ? '' : 's'}</strong>. Renew your plan to continue access.
+                    </p>
+                    <Link
+                      to="/dashboard/plan"
+                      onClick={() => setNotifDropdownOpen(false)}
+                      style={{ fontSize: '0.75rem', color: '#FFD60A', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.2rem', marginTop: '0.2rem' }}
+                    >
+                      <span>Renew Now</span>
+                      <ArrowRight size={12} />
+                    </Link>
+                  </div>
+                ) : (
+                  <div style={{ padding: '1rem 0', textAlign: 'center', color: '#9c9c9c', fontSize: '0.8rem' }}>
+                    No notifications
+                  </div>
+                )}
+              </div>
+            </div>
           )}
         </div>
 

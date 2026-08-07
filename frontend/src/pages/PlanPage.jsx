@@ -15,13 +15,14 @@ const PlanPage = () => {
     refreshUserPlan();
   }, []);
 
-  // Derive metrics at render time from planStartDate and planExpiryDate
-  const metrics = calculatePlanMetrics(user?.planStartDate, user?.planExpiryDate);
   const currentPlanKey = normalizePlanKey(user?.currentPlan || user?.plan);
   const currentPlanTitle = getPlanDisplayTitle(currentPlanKey);
 
-  const formattedStartDate = formatDateUTC(user?.planStartDate || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
-  const formattedExpiryDate = formatDateUTC(user?.planExpiryDate || new Date(Date.now() + 23 * 24 * 60 * 60 * 1000));
+  // Derive metrics at render time from planStartDate and planExpiryDate
+  const metrics = calculatePlanMetrics(user?.planStartDate, user?.planExpiryDate);
+
+  const formattedStartDate = user?.planStartDate ? formatDateUTC(user.planStartDate) : 'N/A';
+  const formattedExpiryDate = user?.planExpiryDate ? formatDateUTC(user.planExpiryDate) : 'Unlimited';
 
   const currentTierObj = PLAN_TIERS.find((t) => t.key === currentPlanKey) || PLAN_TIERS[1];
   const currentTierRank = currentTierObj.tierRank;
@@ -53,7 +54,7 @@ const PlanPage = () => {
       </div>
 
       {/* Renewal Warning Banner (Minimal Dark Alert with Yellow Accent) */}
-      {metrics.remainingDays <= 5 && metrics.status !== 'Expired' && (
+      {currentPlanKey !== 'basic' && metrics.remainingDays <= 5 && metrics.status !== 'Expired' && (
         <div
           style={{
             background: '#151515',
@@ -145,7 +146,7 @@ const PlanPage = () => {
                   border: '1px solid #2A2A2A'
                 }}
               >
-                ● {metrics.status}
+                ● {currentPlanKey === 'basic' ? 'Active (Free)' : metrics.status}
               </span>
             </div>
 
@@ -156,8 +157,8 @@ const PlanPage = () => {
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.8rem', marginTop: '0.8rem', color: '#B3B3B3', fontSize: '0.9rem' }}>
               <span>Start Date: <strong style={{ color: '#FFFFFF' }}>{formattedStartDate}</strong></span>
               <span>Expiry Date: <strong style={{ color: '#FFFFFF' }}>{formattedExpiryDate}</strong></span>
-              <span>Elapsed: <strong style={{ color: '#FFFFFF' }}>{metrics.elapsedDays} Days</strong></span>
-              <span>Remaining: <strong style={{ color: 'var(--color-primary)' }}>{metrics.remainingDays} Days</strong></span>
+              <span>Elapsed: <strong style={{ color: '#FFFFFF' }}>{currentPlanKey === 'basic' ? 'N/A' : `${metrics.elapsedDays} Days`}</strong></span>
+              <span>Remaining: <strong style={{ color: 'var(--color-primary)' }}>{currentPlanKey === 'basic' ? 'Unlimited' : `${metrics.remainingDays} Days`}</strong></span>
             </div>
           </div>
 
@@ -194,13 +195,17 @@ const PlanPage = () => {
         {/* Gray Progress Bar with Yellow Progress Fill */}
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.84rem', fontWeight: 700, marginBottom: '0.45rem', color: '#B3B3B3' }}>
-            <span>Plan Progression (Day {metrics.currentDay} of {metrics.totalDays})</span>
-            <span style={{ color: 'var(--color-primary)' }}>{metrics.progressPct}% Complete</span>
+            {currentPlanKey === 'basic' ? (
+              <span>Plan Progression (Unlimited Free Access)</span>
+            ) : (
+              <span>Plan Progression (Day {metrics.currentDay} of {metrics.totalDays})</span>
+            )}
+            <span style={{ color: 'var(--color-primary)' }}>{currentPlanKey === 'basic' ? '0%' : `${metrics.progressPct}%`} Complete</span>
           </div>
           <div style={{ background: '#090909', border: '1px solid #2A2A2A', height: '8px', borderRadius: '4px', overflow: 'hidden' }}>
             <div
               style={{
-                width: `${metrics.progressPct}%`,
+                width: `${currentPlanKey === 'basic' ? 0 : metrics.progressPct}%`,
                 background: 'var(--color-primary)',
                 height: '100%',
                 borderRadius: '4px',

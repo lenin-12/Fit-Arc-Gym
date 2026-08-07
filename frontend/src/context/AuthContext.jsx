@@ -144,36 +144,14 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const forgotPassword = async (email) => {
+  const forgotPassword = async (email, firstSchoolName, newPassword) => {
     try {
       return await authFetch('/auth/forgot-password', {
         method: 'POST',
-        body: JSON.stringify({ email })
+        body: JSON.stringify({ email, firstSchoolName, newPassword })
       });
     } catch (error) {
-      return { success: false, message: 'Failed to send OTP.' };
-    }
-  };
-
-  const verifyOTP = async (email, otp) => {
-    try {
-      return await authFetch('/auth/verify-otp', {
-        method: 'POST',
-        body: JSON.stringify({ email, otp })
-      });
-    } catch (error) {
-      return { success: false, message: 'OTP verification failed.' };
-    }
-  };
-
-  const resetPassword = async (email, otp, newPassword) => {
-    try {
-      return await authFetch('/auth/reset-password', {
-        method: 'POST',
-        body: JSON.stringify({ email, otp, newPassword })
-      });
-    } catch (error) {
-      return { success: false, message: 'Password reset failed.' };
+      return { success: false, message: 'Password reset failed. Server connection error.' };
     }
   };
 
@@ -214,8 +192,6 @@ export const AuthProvider = ({ children }) => {
         login,
         register,
         forgotPassword,
-        verifyOTP,
-        resetPassword,
         logout,
         handleSessionExpired,
         updateUserProfileState,
