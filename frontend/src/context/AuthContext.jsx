@@ -181,6 +181,22 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const refreshWalletBalance = async () => {
+    try {
+      const res = await authFetch('/wallet');
+      if (res.success && res.data) {
+        updateUserProfileState({
+          walletBalance: res.data.walletBalance,
+          role: res.data.role
+        });
+        return res.data;
+      }
+    } catch (e) {
+      console.warn('Failed to refresh wallet balance:', e);
+    }
+    return null;
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -195,6 +211,7 @@ export const AuthProvider = ({ children }) => {
         handleSessionExpired,
         updateUserProfileState,
         refreshUserPlan,
+        refreshWalletBalance,
         authFetch,
         API_BASE_URL
       }}

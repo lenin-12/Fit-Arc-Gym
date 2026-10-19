@@ -43,6 +43,23 @@ const auditUsersPlan = async () => {
       }
     }
 
+    // Safe wallet balance backfill for existing users missing walletBalance
+    try {
+      const unmigrated = await User.find({
+        $or: [{ walletBalance: { $exists: false } }, { walletBalance: null }]
+      });
+      if (unmigrated.length > 0) {
+        for (const user of unmigrated) {
+          user.walletBalance = 15000;
+          if (!user.role) user.role = 'user';
+          await user.save();
+        }
+        console.log(`[Stage A Audit] Safely initialized wallet balance for ${unmigrated.length} existing user(s).`);
+      }
+    } catch (wErr) {
+      console.warn('[Stage A Audit] Wallet backfill note:', wErr.message);
+    }
+
     // 2. Mock Store Audit
     Object.values(mockUsersStore).forEach((u) => {
       if (u && (u.currentPlan === 'premium' || u.currentPlan === 'pro_ai_vip' || u.plan === 'Premium Plan')) {

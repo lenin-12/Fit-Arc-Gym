@@ -32,6 +32,7 @@ const aiRoutes = require('./routes/aiRoutes');
 const planRoutes = require('./routes/planRoutes');
 const workoutRoutes = require('./routes/workoutRoutes');
 const nutritionRoutes = require('./routes/nutritionRoutes');
+const walletRoutes = require('./routes/walletRoutes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
@@ -39,6 +40,7 @@ app.use('/api/ai', aiRoutes);
 app.use('/api/workout', workoutRoutes);
 app.use('/api/nutrition', nutritionRoutes);
 app.use('/api', planRoutes);
+app.use('/api', walletRoutes);
 
 // Base route test
 app.get('/api/health', (req, res) => {

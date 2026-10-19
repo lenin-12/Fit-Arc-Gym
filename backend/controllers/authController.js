@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const WalletTransaction = require('../models/WalletTransaction');
 const { generateToken } = require('../utils/jwt');
 const { hashPassword, comparePassword } = require('../utils/hashPassword');
 const { sendSuccess, sendError } = require('../utils/apiResponse');
@@ -22,6 +23,8 @@ const createDefaultUserData = (override = {}) => {
     weight: Number(override.weight) || 75,
     fitnessGoal: override.fitnessGoal || 'Gain Muscle',
     activityLevel: override.activityLevel || 'Intermediate',
+    walletBalance: 15000,
+    role: 'user',
     currentPlan: 'basic',
     plan: 'Basic Plan',
     paymentStatus: 'free',
@@ -121,6 +124,8 @@ const registerUser = async (req, res) => {
         fitnessGoal: fitnessGoal || 'Gain Muscle',
         activityLevel: activityLevel || 'Intermediate',
         dailyTargets: calculatedTargets,
+        walletBalance: 15000,
+        role: 'user',
         currentPlan: 'basic',
         plan: 'Basic Plan',
         paymentStatus: 'free',
@@ -135,6 +140,24 @@ const registerUser = async (req, res) => {
         planStartDate: null,
         planExpiryDate: null
       });
+
+      // Log the registration welcome bonus transaction
+      try {
+        await WalletTransaction.create({
+          userId: newUser._id,
+          transactionType: 'REGISTRATION_BONUS',
+          amount: 15000,
+          status: 'COMPLETED',
+          description: 'Welcome Bonus: 15,000 initial wallet credits granted upon registration',
+          relatedPlanId: null,
+          relatedOrderId: null,
+          idempotencyKey: `REG_${newUser._id}`,
+          balanceBefore: 0,
+          balanceAfter: 15000
+        });
+      } catch (txErr) {
+        console.warn('Initial registration bonus transaction write skipped:', txErr.message);
+      }
     } catch (dbErr) {
       // Fallback to mock store if database connection is offline
       const mockObj = createDefaultUserData({
@@ -150,6 +173,8 @@ const registerUser = async (req, res) => {
         activityLevel
       });
       mockObj.dailyTargets = calculatedTargets;
+      mockObj.walletBalance = 15000;
+      mockObj.role = 'user';
       mockObj.waterIntake = 0;
       mockObj.currentStreak = 0;
       mockObj.currentXP = 0;

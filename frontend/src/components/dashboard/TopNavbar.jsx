@@ -1,15 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { Search, Bell, User, Settings, LogOut, Crown, ChevronDown, Menu, ArrowRight } from 'lucide-react';
+import { Search, Bell, User, Settings, LogOut, Crown, ChevronDown, Menu, ArrowRight, Wallet } from 'lucide-react';
 import BrandLogo from '../BrandLogo';
 
 const TopNavbar = ({ onToggleMobileMenu }) => {
-  const { user, logout } = useAuth();
+  const { user, logout, refreshWalletBalance } = useAuth();
   const navigate = useNavigate();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [notifDropdownOpen, setNotifDropdownOpen] = useState(false);
   const [notifRead, setNotifRead] = useState(false);
+
+  useEffect(() => {
+    if (typeof refreshWalletBalance === 'function') {
+      refreshWalletBalance();
+    }
+  }, []);
 
   const getDaysRemaining = () => {
     if (!user?.planExpiryDate || user?.currentPlan === 'basic') return null;
@@ -57,6 +63,28 @@ const TopNavbar = ({ onToggleMobileMenu }) => {
 
       {/* Right: Notifications, Premium Badge, Avatar Dropdown */}
       <div className="header-actions">
+        {/* Wallet Balance Badge Link */}
+        <Link
+          to="/dashboard/payment"
+          style={{
+            background: 'linear-gradient(135deg, rgba(255, 214, 10, 0.15) 0%, rgba(244, 137, 21, 0.15) 100%)',
+            border: '1px solid #FFD60A',
+            color: '#FFD60A',
+            padding: '0.4rem 0.8rem',
+            borderRadius: '20px',
+            fontSize: '0.8rem',
+            fontWeight: 700,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.4rem',
+            textDecoration: 'none',
+            transition: 'transform 0.2s ease, filter 0.2s ease'
+          }}
+          title="Internal Wallet Balance"
+        >
+          <Wallet size={15} />
+          <span>{(user?.walletBalance !== undefined ? user.walletBalance : 15000).toLocaleString()} Credits</span>
+        </Link>
         {/* Current Plan Badge Link */}
         <Link
           to="/dashboard/plan"

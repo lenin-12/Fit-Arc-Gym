@@ -45,4 +45,15 @@ const protect = async (req, res, next) => {
   }
 };
 
-module.exports = { protect };
+const requireAdmin = (req, res, next) => {
+  if (!req.user) {
+    return sendError(res, 'Authentication required', 401);
+  }
+  if (req.user.role !== 'admin') {
+    return sendError(res, 'Access denied. Administrator privileges required.', 403);
+  }
+  next();
+};
+
+module.exports = { protect, requireAdmin };
+

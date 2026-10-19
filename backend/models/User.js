@@ -81,6 +81,17 @@ const userSchema = new mongoose.Schema(
       enum: ['Beginner', 'Intermediate', 'Advanced'],
       default: 'Intermediate'
     },
+    walletBalance: {
+      type: Number,
+      required: true,
+      default: 15000,
+      min: [0, 'Wallet balance cannot be negative']
+    },
+    role: {
+      type: String,
+      enum: ['user', 'admin'],
+      default: 'user'
+    },
     currentPlan: {
       type: String,
       enum: ['basic', 'premium', 'pro_ai_vip'],

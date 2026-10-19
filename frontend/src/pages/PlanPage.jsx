@@ -3,16 +3,19 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { calculatePlanMetrics, formatDateUTC } from '../utils/planCalculations';
 import { PLAN_TIERS, normalizePlanKey, getPlanDisplayTitle } from '../utils/planTiers';
-import { Award, CheckCircle, AlertTriangle, ArrowRight } from 'lucide-react';
+import { Award, CheckCircle, AlertTriangle, ArrowRight, Wallet } from 'lucide-react';
 import "../components/dashboard/Dashboard.css";
 
 const PlanPage = () => {
-  const { user, refreshUserPlan } = useAuth();
+  const { user, refreshUserPlan, refreshWalletBalance } = useAuth();
   const navigate = useNavigate();
 
-  // Always refresh user plan on mount to make sure context is up-to-date
+  // Always refresh user plan & wallet balance on mount
   useEffect(() => {
     refreshUserPlan();
+    if (typeof refreshWalletBalance === 'function') {
+      refreshWalletBalance();
+    }
   }, []);
 
   const currentPlanKey = normalizePlanKey(user?.currentPlan || user?.plan);
@@ -51,6 +54,51 @@ const PlanPage = () => {
         <p style={{ color: '#B3B3B3', marginTop: '0.3rem', fontSize: '0.95rem' }}>
           Manage your subscription tier, billing period, and real-time AI access privileges.
         </p>
+      </div>
+
+      {/* Wallet Credits Overview Banner */}
+      <div
+        style={{
+          background: 'linear-gradient(135deg, rgba(255, 214, 10, 0.08) 0%, rgba(244, 137, 21, 0.05) 100%)',
+          border: '1px solid rgba(255, 214, 10, 0.25)',
+          borderRadius: '14px',
+          padding: '1.2rem 1.6rem',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '1rem'
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div
+            style={{
+              width: '44px',
+              height: '44px',
+              borderRadius: '12px',
+              background: 'rgba(255, 214, 10, 0.15)',
+              border: '1px solid rgba(255, 214, 10, 0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#FFD60A'
+            }}
+          >
+            <Wallet size={22} />
+          </div>
+          <div>
+            <div style={{ fontSize: '0.8rem', color: '#B3B3B3', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Your Internal Wallet Balance
+            </div>
+            <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#FFFFFF', marginTop: '0.1rem' }}>
+              {(user?.walletBalance !== undefined ? user.walletBalance : 15000).toLocaleString()}{' '}
+              <span style={{ fontSize: '0.85rem', color: '#FFD60A', fontWeight: 700 }}>Credits</span>
+            </div>
+          </div>
+        </div>
+        <div style={{ fontSize: '0.85rem', color: '#B3B3B3', maxWidth: '380px' }}>
+          Wallet credits can be applied instantly toward gym plan activations, renewals, and upgrades.
+        </div>
       </div>
 
       {/* Renewal Warning Banner (Minimal Dark Alert with Yellow Accent) */}
