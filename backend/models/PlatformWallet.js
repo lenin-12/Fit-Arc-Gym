@@ -41,9 +41,7 @@ const platformWalletSchema = new mongoose.Schema(
   }
 );
 
-/**
- * Singleton retrieval or atomic initialization helper
- */
+
 platformWalletSchema.statics.getOrCreateSingleton = async function (session = null) {
   const query = { identifier: 'PLATFORM_WALLET' };
   let wallet = await this.findOne(query).session(session);
@@ -64,7 +62,7 @@ platformWalletSchema.statics.getOrCreateSingleton = async function (session = nu
       );
       wallet = docs[0];
     } catch (err) {
-      // Handle race condition if created concurrently
+     
       if (err.code === 11000) {
         wallet = await this.findOne(query).session(session);
       } else {

@@ -152,7 +152,7 @@ const userSchema = new mongoose.Schema(
     },
     currentStreak: {
       type: Number,
-      default: 7
+      default: 0
     },
     currentXP: {
       type: Number,

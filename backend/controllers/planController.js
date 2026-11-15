@@ -1,17 +1,16 @@
 const User = require('../models/User');
 const SubscriptionHistory = require('../models/SubscriptionHistory');
 const Payment = require('../models/Payment');
-const { PLAN_TIERS, TAX_RATE, calculatePlanMetrics } = require('../utils/planUtils');
+const {
+  PLAN_TIERS,
+  TAX_RATE,
+  calculatePlanMetrics,
+  normalizePlanKey: sharedNormalizePlanKey
+} = require('../utils/planUtils');
 const { sendSuccess, sendError } = require('../utils/apiResponse');
 
-// Helper to normalize user plan key ('basic' | 'premium' | 'pro_ai_vip')
-const normalizePlanKey = (planStr) => {
-  if (!planStr) return 'premium';
-  const lower = planStr.toLowerCase().replace(/[^a-z]/g, '');
-  if (lower.includes('basic')) return 'basic';
-  if (lower.includes('pro') || lower.includes('vip')) return 'pro_ai_vip';
-  return 'premium';
-};
+// Shared normalizer: returns null for unknown plans (no silent 'premium' default)
+const normalizePlanKey = (planStr) => sharedNormalizePlanKey(planStr);
 
 // Map plan key to display title
 const getPlanDisplayTitle = (key) => {
@@ -37,7 +36,7 @@ const getPlanDetails = async (req, res) => {
       return sendError(res, 'User not authenticated', 401);
     }
 
-    const currentPlanKey = normalizePlanKey(user.currentPlan || user.plan);
+    const currentPlanKey = normalizePlanKey(user.currentPlan || user.plan) || 'basic';
     const planTier = PLAN_TIERS[currentPlanKey] || PLAN_TIERS.premium;
 
     // Use user dates if available, or initialize defaults
@@ -73,7 +72,7 @@ const getPlanStatus = async (req, res) => {
       return sendError(res, 'User not authenticated', 401);
     }
 
-    const currentPlanKey = normalizePlanKey(user.currentPlan || user.plan);
+    const currentPlanKey = normalizePlanKey(user.currentPlan || user.plan) || 'basic';
     const planStartDate = user.planStartDate || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const planExpiryDate = user.planExpiryDate || new Date(Date.now() + 23 * 24 * 60 * 60 * 1000);
 
@@ -178,106 +177,49 @@ const createPayment = async (req, res) => {
 
 /**
  * POST /api/payment/success
- * Gateway callback / confirm flow - verifies payment and activates plan
+ * SECURITY: this endpoint no longer activates plans. Plans are activated ONLY by the
+ * wallet purchase endpoint (inside its DB transaction). This route just confirms the
+ * state of a payment that the wallet flow already completed for the same user.
  */
 const processPaymentSuccess = async (req, res) => {
   try {
-    const { transactionId, planName, method = 'card', success = true } = req.body;
+    const { transactionId, success = true } = req.body;
+    const userId = req.user._id || req.user.id;
 
     if (!transactionId) {
       return sendError(res, 'Transaction ID is required', 400);
     }
 
     if (!success) {
-      // Payment failed/cancelled flow: mark status failed, keep user currentPlan unchanged
-      if (req.user._id || req.user.id) {
-        try {
-          await User.findByIdAndUpdate(req.user._id || req.user.id, {
-            paymentStatus: 'failed'
-          });
-        } catch (e) {}
-      }
+      // Mark only this pending payment as failed. Never touch the user's plan state.
+      try {
+        await Payment.findOneAndUpdate(
+          { transactionId, userId, status: 'pending' },
+          { status: 'failed' }
+        );
+      } catch (e) {}
       return sendError(res, 'Payment transaction failed or was cancelled', 400);
     }
 
-    const targetKey = normalizePlanKey(planName);
-    const tier = PLAN_TIERS[targetKey] || PLAN_TIERS.premium;
-    const displayTitle = getPlanDisplayTitle(targetKey);
-
-    const price = tier.price;
-    const tax = Math.round(price * TAX_RATE);
-    const total = price + tax;
-
-    const now = new Date();
-    const durationDays = tier.duration;
-    const expiry = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
-
-    // 1. Update User model (currentPlan, planStartDate = now, planExpiryDate = now + duration, paymentStatus = 'active', lastPaymentDate)
-    const userId = req.user._id || req.user.id;
-    let updatedUser = req.user;
-
+    let payment = null;
     try {
-      const dbUser = await User.findById(userId);
-      if (dbUser) {
-        dbUser.currentPlan = targetKey;
-        dbUser.plan = displayTitle;
-        dbUser.planStartDate = now;
-        dbUser.planExpiryDate = expiry;
-        dbUser.planDuration = durationDays;
-        dbUser.paymentStatus = 'active';
-        dbUser.lastPaymentDate = now;
-        await dbUser.save();
-        updatedUser = dbUser.toJSON();
-      }
-    } catch (e) {
-      console.warn('Mongo user update skipped, updating in-memory user object:', e.message);
-      req.user.currentPlan = targetKey;
-      req.user.plan = displayTitle;
-      req.user.planStartDate = now;
-      req.user.planExpiryDate = expiry;
-      req.user.planDuration = durationDays;
-      req.user.paymentStatus = 'active';
-      req.user.lastPaymentDate = now;
-      updatedUser = { ...req.user };
-    }
+      payment = await Payment.findOne({ transactionId, userId, status: 'success' });
+    } catch (e) {}
 
-    // 2. Insert into SubscriptionHistory & Payment collections
-    try {
-      await SubscriptionHistory.create({
-        userId,
-        planName: targetKey,
-        purchaseDate: now,
-        expiryDate: expiry,
-        amount: total,
-        paymentStatus: 'active',
-        transactionId
-      });
-
-      await Payment.findOneAndUpdate(
-        { transactionId },
-        {
-          userId,
-          planName: targetKey,
-          amount: price,
-          tax,
-          total,
-          method,
-          status: 'success',
-          transactionId
-        },
-        { upsert: true, new: true }
+    if (!payment) {
+      return sendError(
+        res,
+        'No completed payment found for this transaction. Plans are activated only by a successful wallet payment.',
+        402
       );
-    } catch (e) {
-      console.warn('Mongo history/payment log write skipped:', e.message);
     }
 
-    return sendSuccess(res, `Your ${displayTitle} has been activated successfully.`, {
-      user: updatedUser,
+    const displayTitle = getPlanDisplayTitle(payment.planName);
+    return sendSuccess(res, `Your ${displayTitle} is active.`, {
+      user: req.user,
       subscription: {
         planName: displayTitle,
-        planKey: targetKey,
-        startDate: now,
-        expiryDate: expiry,
+        planKey: payment.planName,
         paymentStatus: 'active',
         transactionId
       }

@@ -15,10 +15,7 @@ const {
 const { sendSuccess, sendError } = require('../utils/apiResponse');
 const mockUsersStore = require('../services/mockDbStore');
 
-/**
- * GET /api/wallet
- * Returns authenticated user's wallet balance
- */
+
 const getWalletBalance = async (req, res) => {
   try {
     const userId = req.user._id || req.user.id;
@@ -56,10 +53,7 @@ const getWalletBalance = async (req, res) => {
   }
 };
 
-/**
- * GET /api/wallet/transactions
- * Returns authenticated user's paginated wallet transaction history
- */
+
 const getWalletTransactions = async (req, res) => {
   try {
     const userId = req.user._id || req.user.id;
@@ -98,10 +92,87 @@ const getWalletTransactions = async (req, res) => {
   }
 };
 
+
+// ------------------------------------------------------------
+// Idempotency lock helper
+// ------------------------------------------------------------
+const LOCK_TIMEOUT_MS = 2 * 60 * 1000; // PROCESSING older than this is treated as crashed
+
 /**
- * POST /api/payments/plan (also handles POST /api/payment/wallet)
- * Purchase or upgrade a plan using wallet credits with ACID transactions and idempotency
+ * Returns one of:
+ *  { action: 'PROCEED' }                  -> lock acquired, run the payment
+ *  { action: 'REPLAY', status, body }     -> same key already completed, return saved response
+ *  { action: 'REJECT', status, message }  -> conflict / payload mismatch
  */
+const acquireIdempotencyLock = async ({ key, userId, requestPath, payloadHash }) => {
+  // Step 1: try to INSERT. The unique index guarantees only one request wins.
+  try {
+    await IdempotencyRecord.create({
+      key,
+      userId,
+      requestPath,
+      requestPayloadHash: payloadHash,
+      status: 'PROCESSING',
+      lockedAt: new Date()
+    });
+    return { action: 'PROCEED' };
+  } catch (err) {
+    if (err.code !== 11000) throw err; // real error, not a duplicate
+  }
+
+  // Step 2: record already exists, so decide based on its state
+  const existing = await IdempotencyRecord.findOne({ key, userId });
+  if (!existing) {
+    // Deleted between our insert and read (TTL). Very rare, so ask client to retry.
+    return { action: 'REJECT', status: 409, message: 'Please retry the request.' };
+  }
+
+  if (existing.requestPayloadHash !== payloadHash) {
+    return {
+      action: 'REJECT',
+      status: 422,
+      message: 'Idempotency key was previously used with a different request payload'
+    };
+  }
+
+  if (existing.status === 'COMPLETED') {
+    return {
+      action: 'REPLAY',
+      status: existing.responseStatus || 200,
+      body: existing.responseBody
+    };
+  }
+
+  // Step 3: FAILED, or PROCESSING but stale -> atomically take over the lock.
+  // The filter makes sure only ONE concurrent retry can win the takeover.
+  const staleBefore = new Date(Date.now() - LOCK_TIMEOUT_MS);
+  const takenOver = await IdempotencyRecord.findOneAndUpdate(
+    {
+      key,
+      userId,
+      $or: [
+        { status: 'FAILED' },
+        { status: 'PROCESSING', lockedAt: { $lt: staleBefore } }
+      ]
+    },
+    {
+      $set: { status: 'PROCESSING', lockedAt: new Date() },
+      $unset: { responseStatus: '', responseBody: '' }
+    },
+    { new: true }
+  );
+
+  if (takenOver) return { action: 'PROCEED' };
+
+  // Still PROCESSING and fresh, or another retry just took it
+  return {
+    action: 'REJECT',
+    status: 409,
+    message: 'A payment with this idempotency key is currently processing. Please wait.'
+  };
+};
+
+
 const purchasePlanWithWallet = async (req, res) => {
   const userId = req.user._id || req.user.id;
   const { planName, idempotencyKey } = req.body;
@@ -119,87 +190,50 @@ const purchasePlanWithWallet = async (req, res) => {
     return sendError(res, 'Basic plan is free and does not require credit payment', 400);
   }
 
-  // 1. Idempotency Check & Record Initialization
-  let idempotencyRecord = null;
-  const sanitizedIdempotencyKey = idempotencyKey ? String(idempotencyKey).trim() : null;
+  if (!idempotencyKey || !String(idempotencyKey).trim()) {
+    return sendError(res, 'idempotencyKey is required', 400);
+  }
+  const sanitizedIdempotencyKey = String(idempotencyKey).trim();
 
-  if (sanitizedIdempotencyKey) {
+  // Check transaction support BEFORE taking the lock (no cleanup needed on failure)
+  let session;
+  try {
+    session = await mongoose.startSession();
+  } catch (sessErr) {
+    return sendError(
+      res,
+      'MongoDB multi-document transactions require a replica set or mongos cluster.',
+      503
+    );
+  }
+
+  try {
+    // ---- Idempotency lock ----
     const payloadHash = crypto
       .createHash('sha256')
       .update(JSON.stringify({ userId: userId.toString(), planKey: targetKey }))
       .digest('hex');
 
-    try {
-      const existing = await IdempotencyRecord.findOne({
-        key: sanitizedIdempotencyKey,
-        userId
-      });
+    const lock = await acquireIdempotencyLock({
+      key: sanitizedIdempotencyKey,
+      userId,
+      requestPath: req.originalUrl || req.path,
+      payloadHash
+    });
 
-      if (existing) {
-        if (existing.status === 'COMPLETED') {
-          // Verify payload matches
-          if (existing.requestPayloadHash !== payloadHash) {
-            return sendError(
-              res,
-              'Idempotency key was previously used with a different request payload',
-              422
-            );
-          }
-          // Return cached idempotent response
-          return res.status(existing.responseStatus || 200).json(existing.responseBody);
-        } else if (existing.status === 'PROCESSING') {
-          return sendError(
-            res,
-            'A payment with this idempotency key is currently processing. Please wait.',
-            409
-          );
-        }
-      }
-
-      // Create new PROCESSING idempotency record
-      idempotencyRecord = await IdempotencyRecord.findOneAndUpdate(
-        { key: sanitizedIdempotencyKey, userId },
-        {
-          $setOnInsert: {
-            key: sanitizedIdempotencyKey,
-            userId,
-            requestPath: req.originalUrl || req.path,
-            requestPayloadHash: payloadHash,
-            status: 'PROCESSING'
-          }
-        },
-        { upsert: true, new: true }
-      );
-    } catch (idempErr) {
-      // If duplicate key error during insert, another request just created it
-      if (idempErr.code === 11000) {
-        return sendError(
-          res,
-          'A payment with this idempotency key is currently processing. Please wait.',
-          409
-        );
-      }
-      console.warn('Idempotency initialization warning:', idempErr.message);
+    if (lock.action === 'REPLAY') {
+      return res.status(lock.status).json(lock.body);
     }
-  }
+    if (lock.action === 'REJECT') {
+      return sendError(res, lock.message, lock.status);
+    }
 
-  // 2. Start Mongoose Session for ACID Multi-Document Transaction
-  let session = null;
-  let useTransactions = true;
-
-  try {
-    session = await mongoose.startSession();
-  } catch (sessErr) {
-    console.warn('MongoDB sessions not available:', sessErr.message);
-    useTransactions = false;
-  }
-
-  try {
+    // ---- Transaction ----
     let result = null;
 
-    if (useTransactions && session) {
+    try {
       await session.withTransaction(async () => {
-        // Step 1: Load and lock user document inside the transaction
+        // Step 1: Load user inside the transaction
         const freshUser = await User.findById(userId).session(session);
         if (!freshUser) {
           const err = new Error('USER_NOT_FOUND');
@@ -209,7 +243,16 @@ const purchasePlanWithWallet = async (req, res) => {
 
         // Step 2: Authoritative pricing calculation
         const pricing = calculateAuthoritativePayable(freshUser, targetKey);
-        const { targetTier, payableAmount, transactionType, price, tax, currentPlanKey } = pricing;
+        const {
+          targetTier,
+          payableAmount,
+          transactionType,
+          price,
+          tax,
+          targetTotal,
+          upgradeCredit,
+          currentPlanKey
+        } = pricing;
 
         // Step 3: Check sufficient balance
         if (freshUser.walletBalance < payableAmount) {
@@ -268,9 +311,9 @@ const purchasePlanWithWallet = async (req, res) => {
         updatedUser.lastPaymentDate = now;
         await updatedUser.save({ session });
 
-        // Step 7: Create unique transaction identifiers and record WalletTransaction
-        const transactionId = 'WTX_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8).toUpperCase();
-        const txnIdempKey = sanitizedIdempotencyKey || transactionId;
+        // Step 7: Record WalletTransaction, Payment, SubscriptionHistory
+        const transactionId =
+          'WTX_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8).toUpperCase();
 
         const [walletTxn] = await WalletTransaction.create(
           [
@@ -282,12 +325,14 @@ const purchasePlanWithWallet = async (req, res) => {
               description: `Paid ${payableAmount} credits for ${targetTier.name}`,
               relatedPlanId: targetKey,
               relatedOrderId: transactionId,
-              idempotencyKey: txnIdempKey,
+              idempotencyKey: sanitizedIdempotencyKey,
               balanceBefore,
               balanceAfter,
               metadata: {
                 subtotal: price,
                 tax,
+                targetTotal,
+                upgradeCredit,
                 previousPlan: currentPlanKey,
                 planDurationDays: durationDays
               }
@@ -296,7 +341,6 @@ const purchasePlanWithWallet = async (req, res) => {
           { session }
         );
 
-        // Step 8: Create Payment and SubscriptionHistory records
         await Payment.create(
           [
             {
@@ -344,56 +388,51 @@ const purchasePlanWithWallet = async (req, res) => {
             user: updatedUser.toJSON()
           }
         };
-      });
-    } else {
-      // If transactions are not supported by the deployment environment
-      const errorMsg = 'MongoDB multi-document transactions require a replica set or mongos cluster. Standalone servers do not support transactions.';
-      if (sanitizedIdempotencyKey && idempotencyRecord) {
-        await IdempotencyRecord.deleteOne({ key: sanitizedIdempotencyKey, userId });
-      }
-      return sendError(res, errorMsg, 503);
-    }
 
-    // 3. Mark Idempotency Record as COMPLETED
-    if (sanitizedIdempotencyKey) {
-      try {
+        // Committed atomically together with the payment
         await IdempotencyRecord.findOneAndUpdate(
           { key: sanitizedIdempotencyKey, userId },
-          {
-            $set: {
-              status: 'COMPLETED',
-              responseStatus: 200,
-              responseBody: result
-            }
-          }
+          { $set: { status: 'COMPLETED', responseStatus: 200, responseBody: result } },
+          { session }
         );
-      } catch (e) {
-        console.warn('Failed to update idempotency record status:', e.message);
-      }
-    }
-
-    return res.status(200).json(result);
-  } catch (error) {
-    // Transaction rolled back automatically
-    console.error('Wallet Payment Transaction Error:', error);
-
-    // Clean up or mark idempotency record as FAILED
-    if (sanitizedIdempotencyKey) {
+      });
+    } catch (txnError) {
+      // Transaction already rolled back. Mark the lock FAILED so the client can retry.
+      // Filter on PROCESSING so we never overwrite a COMPLETED record.
       try {
         await IdempotencyRecord.findOneAndUpdate(
-          { key: sanitizedIdempotencyKey, userId },
+          { key: sanitizedIdempotencyKey, userId, status: 'PROCESSING' },
           {
             $set: {
               status: 'FAILED',
-              responseStatus: error.statusCode || 400,
+              responseStatus: txnError.statusCode || 400,
               responseBody: {
                 success: false,
-                message: error.message || 'Payment transaction failed'
+                message: txnError.message || 'Payment transaction failed'
               }
             }
           }
         );
-      } catch (cleanErr) {}
+      } catch (markErr) {
+        console.warn('Could not mark idempotency record FAILED:', markErr.message);
+      }
+      throw txnError;
+    }
+
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('Wallet Payment Transaction Error:', error);
+
+    if (error.message === 'ALREADY_ON_PLAN') {
+      return sendError(res, 'You are already on this plan. No charge was made.', 409);
+    }
+
+    if (error.message === 'DOWNGRADE_NOT_ALLOWED') {
+      return sendError(
+        res,
+        'Downgrading to a lower plan is not supported while your current plan is active.',
+        409
+      );
     }
 
     if (error.message === 'INSUFFICIENT_FUNDS') {
@@ -413,18 +452,78 @@ const purchasePlanWithWallet = async (req, res) => {
       return sendError(res, 'The selected plan does not exist or is invalid', 400);
     }
 
-    return sendError(res, error.message || 'Payment transaction failed and was rolled back.', error.statusCode || 500);
+    return sendError(
+      res,
+      error.message || 'Payment transaction failed and was rolled back.',
+      error.statusCode || 500
+    );
   } finally {
-    if (session) {
-      await session.endSession();
-    }
+    await session.endSession();
   }
 };
 
-/**
- * GET /api/admin/wallet
- * Returns platform wallet balance and revenue statistics (Admin only)
- */
+
+const getPlanQuote = async (req, res) => {
+  try {
+    const userId = req.user._id || req.user.id;
+    const targetKey = normalizePlanKey(req.query.plan);
+    if (!targetKey || !PLAN_TIERS[targetKey]) {
+      return sendError(res, 'Invalid or non-existent gym plan selected', 400);
+    }
+
+    const user = await User.findById(userId).select(
+      'walletBalance currentPlan plan planStartDate planExpiryDate paymentStatus'
+    );
+    if (!user) {
+      return sendError(res, 'User account not found', 404);
+    }
+
+    const walletBalance = user.walletBalance || 0;
+    const currentPlan = normalizePlanKey(user.currentPlan || user.plan) || 'basic';
+
+    if (targetKey === 'basic') {
+      return sendSuccess(res, 'Quote generated', {
+        currentPlan, targetPlan: targetKey, canPurchase: false,
+        reason: 'BASIC_IS_FREE', walletBalance
+      });
+    }
+
+    let pricing;
+    try {
+      pricing = calculateAuthoritativePayable(user, targetKey);
+    } catch (err) {
+      if (err.message === 'ALREADY_ON_PLAN' || err.message === 'DOWNGRADE_NOT_ALLOWED') {
+        return sendSuccess(res, 'Quote generated', {
+          currentPlan, targetPlan: targetKey, canPurchase: false,
+          reason: err.message, walletBalance
+        });
+      }
+      throw err;
+    }
+
+    const shortfall = Math.max(0, pricing.payableAmount - walletBalance);
+    return sendSuccess(res, 'Quote generated', {
+      currentPlan,
+      targetPlan: targetKey,
+      targetPlanName: pricing.targetTier.name,
+      transactionType: pricing.transactionType,
+      price: pricing.price,
+      tax: pricing.tax,
+      targetTotal: pricing.targetTotal,
+      upgradeCredit: pricing.upgradeCredit,
+      payableAmount: pricing.payableAmount,
+      walletBalance,
+      projectedBalance: walletBalance - pricing.payableAmount,
+      shortfall,
+      canPurchase: shortfall === 0,
+      reason: shortfall > 0 ? 'INSUFFICIENT_FUNDS' : null
+    });
+  } catch (error) {
+    return sendError(res, error.message || 'Failed to generate quote', 500);
+  }
+};
+
+
 const getAdminWallet = async (req, res) => {
   try {
     const platformWallet = await PlatformWallet.getOrCreateSingleton();
@@ -477,10 +576,7 @@ const getAdminWallet = async (req, res) => {
   }
 };
 
-/**
- * GET /api/admin/transactions
- * Returns system-wide wallet transactions (Admin only)
- */
+
 const getAdminTransactions = async (req, res) => {
   try {
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
@@ -523,6 +619,7 @@ module.exports = {
   getWalletBalance,
   getWalletTransactions,
   purchasePlanWithWallet,
+  getPlanQuote,
   getAdminWallet,
   getAdminTransactions,
   calculateAuthoritativePayable

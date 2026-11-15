@@ -1,0 +1,22 @@
+{
+  "_comment": "IAM Policy for the EC2 INSTANCE PROFILE (attached to the EC2 instance role, NOT to the GitHub OIDC role).",
+  "_principal": "EC2 instance profile role (the role attached to the EC2 instance via IAM → Roles → <instance-role>)",
+  "_permissions_rationale": {
+    "s3:GetObject": "Download the backend release tarball and deploy-backend.sh from the private S3 artifacts prefix onto the EC2 instance. The SSM command calls `aws s3 cp` as the EC2 instance role, so this permission belongs here — not on the GitHub deploy role.",
+    "ssm:*": "Covered by the managed policy AmazonSSMManagedInstanceCore — do NOT duplicate here.",
+    "NOTE": "Also attach the AWS managed policy AmazonSSMManagedInstanceCore to this role so the SSM Agent can connect."
+  },
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "S3BackendArtifactDownload",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject"
+      ],
+      "Resource": [
+        "arn:aws:s3:::REPLACE_WITH_YOUR_ARTIFACTS_BUCKET_NAME/deploy/releases/*"
+      ]
+    }
+  ]
+}

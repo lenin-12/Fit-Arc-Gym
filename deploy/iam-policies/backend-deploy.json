@@ -1,0 +1,60 @@
+{
+  "_comment": "IAM Policy for the GitHub Actions CI/CD backend deploy role (attached to the GITHUB OIDC role, NOT to the EC2 instance profile).",
+  "_principal": "GitHub Actions OIDC role (AWS_BACKEND_DEPLOY_ROLE_ARN)",
+  "_permissions_rationale": {
+    "s3:PutObject": "Upload the backend release tarball and deploy-backend.sh to the private S3 artifacts prefix.",
+    "s3:GetBucketLocation": "Required by some AWS CLI versions before multipart upload.",
+    "ssm:SendCommand": "Execute the deploy-backend.sh script on the EC2 instance without requiring SSH.",
+    "ssm:GetCommandInvocation": "Poll SSM command status so the CD job can wait for completion and detect failures.",
+    "ec2:DescribeInstances": "Resolve instance IDs when using instance name tags (optional convenience).",
+    "NOTE — s3:GetObject NOT here": "s3:GetObject on the artifacts prefix belongs on the EC2 INSTANCE PROFILE (see ec2-instance-profile.json), NOT on this GitHub role. The GitHub role only uploads; the EC2 instance downloads."
+  },
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "S3BackendArtifactUpload",
+      "Effect": "Allow",
+      "Action": [
+        "s3:PutObject",
+        "s3:GetBucketLocation"
+      ],
+      "Resource": [
+        "arn:aws:s3:::REPLACE_WITH_YOUR_ARTIFACTS_BUCKET_NAME/deploy/releases/*"
+      ]
+    },
+    {
+      "Sid": "SSMRunCommand",
+      "Effect": "Allow",
+      "Action": [
+        "ssm:SendCommand"
+      ],
+      "Resource": [
+        "arn:aws:ec2:REPLACE_WITH_YOUR_REGION:REPLACE_WITH_YOUR_AWS_ACCOUNT_ID:instance/REPLACE_WITH_YOUR_INSTANCE_ID",
+        "arn:aws:ssm:REPLACE_WITH_YOUR_REGION::document/AWS-RunShellScript"
+      ]
+    },
+    {
+      "Sid": "SSMGetCommandStatus",
+      "Effect": "Allow",
+      "Action": [
+        "ssm:GetCommandInvocation"
+      ],
+      "Resource": [
+        "arn:aws:ssm:REPLACE_WITH_YOUR_REGION:REPLACE_WITH_YOUR_AWS_ACCOUNT_ID:*"
+      ]
+    },
+    {
+      "Sid": "EC2DescribeForTagResolution",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DescribeInstances"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "REPLACE_WITH_YOUR_REGION"
+        }
+      }
+    }
+  ]
+}
