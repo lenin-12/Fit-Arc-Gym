@@ -67,9 +67,9 @@ const TopNavbar = ({ onToggleMobileMenu }) => {
         <Link
           to="/dashboard/payment"
           style={{
-            background: 'linear-gradient(135deg, rgba(255, 214, 10, 0.15) 0%, rgba(244, 137, 21, 0.15) 100%)',
-            border: '1px solid #FFD60A',
-            color: '#FFD60A',
+            background: 'var(--bg-card, #181818)',
+            border: '1px solid var(--accent, #FFD60A)',
+            color: 'var(--accent, #FFD60A)',
             padding: '0.4rem 0.8rem',
             borderRadius: '20px',
             fontSize: '0.8rem',
@@ -89,9 +89,9 @@ const TopNavbar = ({ onToggleMobileMenu }) => {
         <Link
           to="/dashboard/plan"
           style={{
-            background: 'linear-gradient(135deg, rgba(244, 137, 21, 0.2) 0%, rgba(250, 80, 66, 0.2) 100%)',
-            border: '1px solid #f48915',
-            color: '#f48915',
+            background: 'var(--bg-card, #181818)',
+            border: '1px solid var(--accent, #FFD60A)',
+            color: 'var(--accent, #FFD60A)',
             padding: '0.4rem 0.8rem',
             borderRadius: '20px',
             fontSize: '0.8rem',

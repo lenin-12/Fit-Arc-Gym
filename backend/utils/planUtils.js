@@ -1,6 +1,3 @@
-/**
- * Shared Subscription & Plan Date Math Utility (UTC based)
- */
 
 const PLAN_TIERS = {
   basic: {
@@ -38,10 +35,7 @@ const PLAN_TIERS = {
 
 const TAX_RATE = 0.18; // 18% GST
 
-/**
- * Calculates plan derived metrics strictly from planStartDate and planExpiryDate.
- * Enforces identity invariant: elapsedDays + remainingDays === totalDays
- */
+
 function calculatePlanMetrics(startDate, expiryDate, referenceDate = new Date()) {
   const start = new Date(startDate);
   const expiry = new Date(expiryDate);
@@ -101,41 +95,55 @@ const PLAN_RANKS = {
   pro_ai_vip: 3
 };
 
-const calculateAuthoritativePayable = (user, targetKey) => {
+
+const calcTax = (price) => Math.round((price * Math.round(TAX_RATE * 100)) / 100);
+
+const planError = (code, statusCode = 409) => {
+  const err = new Error(code);
+  err.statusCode = statusCode;
+  return err;
+};
+
+
+const INACTIVE_STATUSES = ['cancelled', 'canceled', 'expired', 'refunded'];
+
+const isPlanActive = (user, now = new Date()) => {
+  if (!user || !user.planExpiryDate) return false;
+  if (new Date(user.planExpiryDate) <= now) return false;
+  return !INACTIVE_STATUSES.includes(String(user.paymentStatus || '').toLowerCase());
+};
+
+
+const calculateAuthoritativePayable = (user, targetKey, now = new Date()) => {
   const targetTier = PLAN_TIERS[targetKey];
   if (!targetTier) {
-    throw new Error('INVALID_PLAN');
+    throw planError('INVALID_PLAN', 400);
   }
 
   const price = targetTier.price;
-  const tax = Math.round(price * TAX_RATE);
+  const tax = calcTax(price);
   const targetTotal = price + tax;
 
   const currentPlanKey = normalizePlanKey(user.currentPlan || user.plan) || 'basic';
-  const currentRank = PLAN_RANKS[currentPlanKey] || 1;
-  const targetRank = PLAN_RANKS[targetKey] || 1;
-
-  const now = new Date();
-  const isCurrentPlanActive = user.paymentStatus === 'active' && user.planExpiryDate && new Date(user.planExpiryDate) > now;
+  const active = isPlanActive(user, now);
 
   let transactionType = 'PLAN_PURCHASE';
-  let payableAmount = targetTotal;
+  let upgradeCredit = 0;
 
-  if (currentPlanKey === targetKey && isCurrentPlanActive) {
-    transactionType = 'PLAN_RENEWAL';
-    payableAmount = targetTotal;
-  } else if (targetRank > currentRank && isCurrentPlanActive) {
-    const currentPrice = PLAN_TIERS[currentPlanKey]?.price || 0;
-    const currentTax = Math.round(currentPrice * TAX_RATE);
-    const currentTotal = currentPrice + currentTax;
+  if (active) {
+    const currentRank = PLAN_RANKS[currentPlanKey] || 1;
+    const targetRank = PLAN_RANKS[targetKey] || 1;
 
-    const upgradeDifference = Math.max(0, targetTotal - currentTotal);
-    payableAmount = upgradeDifference > 0 ? upgradeDifference : targetTotal;
+    if (targetRank === currentRank) throw planError('ALREADY_ON_PLAN');
+    if (targetRank < currentRank) throw planError('DOWNGRADE_NOT_ALLOWED');
+
+    const currentTier = PLAN_TIERS[currentPlanKey];
+    // CREDIT RULE
+    upgradeCredit = currentTier ? currentTier.price + calcTax(currentTier.price) : 0;
     transactionType = 'PLAN_UPGRADE';
-  } else {
-    transactionType = 'PLAN_PURCHASE';
-    payableAmount = targetTotal;
   }
+
+  const payableAmount = Math.max(0, targetTotal - upgradeCredit);
 
   return {
     targetKey,
@@ -143,9 +151,11 @@ const calculateAuthoritativePayable = (user, targetKey) => {
     price,
     tax,
     targetTotal,
+    upgradeCredit,
     payableAmount,
     transactionType,
-    currentPlanKey
+    currentPlanKey,
+    currentPlanActive: active
   };
 };
 
@@ -154,5 +164,7 @@ module.exports = {
   TAX_RATE,
   calculatePlanMetrics,
   normalizePlanKey,
-  calculateAuthoritativePayable
+  calculateAuthoritativePayable,
+  calcTax,
+  isPlanActive
 };

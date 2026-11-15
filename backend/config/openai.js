@@ -1,10 +1,9 @@
-const OpenAI = require('openai');
-
 const apiKey = process.env.OPENAI_API_KEY || '';
 
 let openai = null;
 
 if (apiKey && apiKey.trim() !== '') {
+  const OpenAI = require('openai');
   openai = new OpenAI({
     apiKey: apiKey.trim()
   });

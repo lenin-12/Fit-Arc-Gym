@@ -1,7 +1,15 @@
 /**
- * FIT ARC GYM - COMPREHENSIVE WALLET & PAYMENT TEST SUITE
+ * FIT ARC GYM - WALLET & PAYMENT LOGIC SIMULATION TEST SUITE
  *
- * Covers all 14 required verification scenarios:
+ * NOTE: This is an IN-MEMORY LOGIC SIMULATION. It uses a MockDatabase class
+ * and does NOT call walletController or MongoDB sessions. It validates the
+ * business logic of planUtils and the payment execution engine in isolation,
+ * with no external dependencies (no MongoDB, no network, no file I/O).
+ *
+ * For real end-to-end integration tests that call the actual walletController
+ * against a real MongoDB replica set, see: tests/wallet.integration.test.js
+ *
+ * Covers all 14 required logic verification scenarios:
  * TEST 1:  New user registration bonus (exactly 15,000 credits)
  * TEST 2:  Existing user wallet balance preserved during migration
  * TEST 3:  Successful plan purchase (deduction, platform credit, txn logged, plan active)
