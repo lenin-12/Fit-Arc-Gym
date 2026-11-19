@@ -183,6 +183,10 @@ GitHub Actions (`.github/workflows/ci.yml`) runs the backend tests and a fronten
 - Live backend deployment
 
 ---
+## Project status
+
+- The GitHub Actions CI pipeline is currently failing. I’m actively working on a fix, and the application itself is deployed and working.
+- Next up: integration tests for the payment flow that run against a real MongoDB replica set, replacing the mock-based tests.
 
 ## Author
 
