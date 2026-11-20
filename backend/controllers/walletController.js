@@ -93,19 +93,13 @@ const getWalletTransactions = async (req, res) => {
 };
 
 
-// ------------------------------------------------------------
-// Idempotency lock helper
-// ------------------------------------------------------------
-const LOCK_TIMEOUT_MS = 2 * 60 * 1000; // PROCESSING older than this is treated as crashed
 
-/**
- * Returns one of:
- *  { action: 'PROCEED' }                  -> lock acquired, run the payment
- *  { action: 'REPLAY', status, body }     -> same key already completed, return saved response
- *  { action: 'REJECT', status, message }  -> conflict / payload mismatch
- */
+const LOCK_TIMEOUT_MS = 2 * 60 * 1000;
+
+
+
 const acquireIdempotencyLock = async ({ key, userId, requestPath, payloadHash }) => {
-  // Step 1: try to INSERT. The unique index guarantees only one request wins.
+  // Step 1: try to create the record. The unique (key, userId) index lets exactly one request win.
   try {
     await IdempotencyRecord.create({
       key,
@@ -117,13 +111,12 @@ const acquireIdempotencyLock = async ({ key, userId, requestPath, payloadHash })
     });
     return { action: 'PROCEED' };
   } catch (err) {
-    if (err.code !== 11000) throw err; // real error, not a duplicate
+    if (err.code !== 11000) throw err; 
   }
 
-  // Step 2: record already exists, so decide based on its state
+  
   const existing = await IdempotencyRecord.findOne({ key, userId });
   if (!existing) {
-    // Deleted between our insert and read (TTL). Very rare, so ask client to retry.
     return { action: 'REJECT', status: 409, message: 'Please retry the request.' };
   }
 
@@ -143,8 +136,7 @@ const acquireIdempotencyLock = async ({ key, userId, requestPath, payloadHash })
     };
   }
 
-  // Step 3: FAILED, or PROCESSING but stale -> atomically take over the lock.
-  // The filter makes sure only ONE concurrent retry can win the takeover.
+
   const staleBefore = new Date(Date.now() - LOCK_TIMEOUT_MS);
   const takenOver = await IdempotencyRecord.findOneAndUpdate(
     {
@@ -152,7 +144,10 @@ const acquireIdempotencyLock = async ({ key, userId, requestPath, payloadHash })
       userId,
       $or: [
         { status: 'FAILED' },
-        { status: 'PROCESSING', lockedAt: { $lt: staleBefore } }
+        {
+          status: 'PROCESSING',
+          $or: [{ lockedAt: { $lt: staleBefore } }, { lockedAt: null }]
+        }
       ]
     },
     {
@@ -190,6 +185,7 @@ const purchasePlanWithWallet = async (req, res) => {
     return sendError(res, 'Basic plan is free and does not require credit payment', 400);
   }
 
+  // The client must generate ONE key per purchase attempt and reuse it on retries.
   if (!idempotencyKey || !String(idempotencyKey).trim()) {
     return sendError(res, 'idempotencyKey is required', 400);
   }
@@ -397,8 +393,7 @@ const purchasePlanWithWallet = async (req, res) => {
         );
       });
     } catch (txnError) {
-      // Transaction already rolled back. Mark the lock FAILED so the client can retry.
-      // Filter on PROCESSING so we never overwrite a COMPLETED record.
+     
       try {
         await IdempotencyRecord.findOneAndUpdate(
           { key: sanitizedIdempotencyKey, userId, status: 'PROCESSING' },
@@ -422,6 +417,15 @@ const purchasePlanWithWallet = async (req, res) => {
     return res.status(200).json(result);
   } catch (error) {
     console.error('Wallet Payment Transaction Error:', error);
+
+    // Standalone MongoDB: startSession() succeeds, but the transaction itself fails.
+    if (error.code === 20 || /replica set|Transaction numbers/i.test(error.message || '')) {
+      return sendError(
+        res,
+        'MongoDB multi-document transactions require a replica set or mongos cluster.',
+        503
+      );
+    }
 
     if (error.message === 'ALREADY_ON_PLAN') {
       return sendError(res, 'You are already on this plan. No charge was made.', 409);
@@ -461,6 +465,7 @@ const purchasePlanWithWallet = async (req, res) => {
     await session.endSession();
   }
 };
+
 
 
 const getPlanQuote = async (req, res) => {
@@ -524,6 +529,7 @@ const getPlanQuote = async (req, res) => {
 };
 
 
+
 const getAdminWallet = async (req, res) => {
   try {
     const platformWallet = await PlatformWallet.getOrCreateSingleton();
@@ -575,6 +581,7 @@ const getAdminWallet = async (req, res) => {
     return sendError(res, error.message || 'Failed to retrieve admin platform wallet', 500);
   }
 };
+
 
 
 const getAdminTransactions = async (req, res) => {

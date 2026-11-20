@@ -19,18 +19,14 @@ const assert = require('node:assert/strict');
 const mongoose = require('mongoose');
 const { MongoMemoryReplSet } = require('mongodb-memory-server');
 
-// ── Models & controller ──────────────────────────────────────────────────────
-// We require these AFTER mongoose is connected so their model registrations
-// happen on the right connection.
+
 let User, PlatformWallet, WalletTransaction, IdempotencyRecord, Payment,
     SubscriptionHistory, purchasePlanWithWallet;
 
-// ── Test helpers ─────────────────────────────────────────────────────────────
+
 let replSet;
 
-/**
- * Build a minimal express-style req object.
- */
+
 const makeReq = (user, body = {}) => ({
   user,
   body,
@@ -39,10 +35,7 @@ const makeReq = (user, body = {}) => ({
   query: {}
 });
 
-/**
- * Collect what sendSuccess / sendError would write to the response.
- * Returns { status, body } after the controller resolves.
- */
+
 const makeRes = () => {
   const res = {
     _status: 200,
@@ -53,9 +46,7 @@ const makeRes = () => {
   return res;
 };
 
-/**
- * Create a user document in MongoDB with a given wallet balance.
- */
+
 const createUser = async (overrides = {}) => {
   return User.create({
     name: 'Test User',
@@ -69,14 +60,14 @@ const createUser = async (overrides = {}) => {
   });
 };
 
-// ── Lifecycle ─────────────────────────────────────────────────────────────────
+
 test.before(async () => {
-  // Start an in-process replica set (required for multi-document transactions)
+ 
   replSet = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
   const uri = replSet.getUri();
   await mongoose.connect(uri);
 
-  // Now require models & controller (after connection is established)
+  
   User                   = require('../models/User');
   PlatformWallet         = require('../models/PlatformWallet');
   WalletTransaction      = require('../models/WalletTransaction');
@@ -85,7 +76,7 @@ test.before(async () => {
   SubscriptionHistory    = require('../models/SubscriptionHistory');
   ({ purchasePlanWithWallet } = require('../controllers/walletController'));
 
-  // Ensure PlatformWallet singleton exists
+  
   await PlatformWallet.findOneAndUpdate(
     { identifier: 'PLATFORM_WALLET' },
     { $setOnInsert: { identifier: 'PLATFORM_WALLET', balance: 0, totalRevenue: 0, totalTransactions: 0 } },
@@ -99,7 +90,7 @@ test.after(async () => {
 });
 
 test.afterEach(async () => {
-  // Clear collections between tests to prevent bleed-through
+  
   await Promise.all([
     User.deleteMany({}),
     WalletTransaction.deleteMany({}),

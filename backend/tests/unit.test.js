@@ -1,14 +1,3 @@
-/**
- * unit.test.js — Pure unit tests for Fit-Arc-Gym business logic utilities.
- *
- * These tests import only backend/utils/planUtils.js which has ZERO external
- * dependencies (no mongoose, no openai, no express). They run instantly in any
- * environment including sandboxed CI with no network access.
- *
- * Run with:
- *   node --test tests/unit.test.js
- */
-
 const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
 const {
@@ -17,7 +6,7 @@ const {
   calculateAuthoritativePayable
 } = require('../utils/planUtils');
 
-describe('Plan Date Math & Metrics — Identity Tests', () => {
+describe('Plan Date Math & Metrics: Identity Tests', () => {
   test('elapsedDays + remainingDays === totalDays (identity invariant)', () => {
     const start   = new Date('2026-01-01T00:00:00Z');
     const expiry  = new Date('2026-01-31T00:00:00Z');
@@ -31,17 +20,17 @@ describe('Plan Date Math & Metrics — Identity Tests', () => {
     assert.equal(m.status, 'Active');
   });
 
-  test('Status transitions: Expiring Soon (≤5 days left) and Expired (0 remaining)', () => {
+  test('Status transitions: Expiring Soon (5 days or fewer left) and Expired (0 remaining)', () => {
     const start  = new Date('2026-01-01T00:00:00Z');
     const expiry = new Date('2026-01-31T00:00:00Z');
 
-    // 3 days remaining → Expiring Soon
+    // 3 days remaining: Expiring Soon
     const mSoon = calculatePlanMetrics(start, expiry, new Date('2026-01-28T00:00:00Z'));
     assert.ok(mSoon.remainingDays <= 5 && mSoon.remainingDays > 0, 'should be expiring soon');
     assert.equal(mSoon.status, 'Expiring Soon');
     assert.equal(mSoon.elapsedDays + mSoon.remainingDays, mSoon.totalDays, 'identity invariant');
 
-    // 0 remaining → Expired
+    // 0 remaining: Expired
     const mExp = calculatePlanMetrics(start, expiry, new Date('2026-02-01T00:00:00Z'));
     assert.equal(mExp.remainingDays, 0, 'should have 0 remaining');
     assert.equal(mExp.status, 'Expired');
@@ -65,7 +54,9 @@ describe('Plan Key Normalization', () => {
 });
 
 describe('Authoritative Payable Calculation', () => {
-  test('basic→premium with paymentStatus=free is PLAN_PURCHASE at full premium price + 18% GST', () => {
+  const DAY = 24 * 60 * 60 * 1000;
+
+  test('basic to premium with paymentStatus=free is PLAN_PURCHASE at full premium price + 18% GST', () => {
     const user = { currentPlan: 'basic', paymentStatus: 'free' };
     const result = calculateAuthoritativePayable(user, 'premium');
     const expectedAmount = 3499 + Math.round(3499 * 0.18);
@@ -73,14 +64,29 @@ describe('Authoritative Payable Calculation', () => {
     assert.equal(result.transactionType, 'PLAN_PURCHASE');
   });
 
-  test('premium→premium with active plan is PLAN_RENEWAL', () => {
-    const future = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days from now
+  
+  test('premium to premium with an active plan is rejected with ALREADY_ON_PLAN (409)', () => {
     const user = {
       currentPlan: 'premium',
-      paymentStatus: 'active',  // must be 'active' (not 'paid') per planUtils line 119
-      planExpiryDate: future.toISOString()
+      paymentStatus: 'active',
+      planExpiryDate: new Date(Date.now() + 30 * DAY).toISOString()
     };
-    const result = calculateAuthoritativePayable(user, 'premium');
-    assert.equal(result.transactionType, 'PLAN_RENEWAL');
+    assert.throws(
+      () => calculateAuthoritativePayable(user, 'premium'),
+      { message: 'ALREADY_ON_PLAN', statusCode: 409 }
+    );
+  });
+
+ 
+  test('premium to pro_ai_vip with an active plan is PLAN_UPGRADE and credits the premium price', () => {
+    const user = {
+      currentPlan: 'premium',
+      paymentStatus: 'active',
+      planExpiryDate: new Date(Date.now() + 30 * DAY).toISOString()
+    };
+    const result = calculateAuthoritativePayable(user, 'pro_ai_vip');
+    assert.equal(result.transactionType, 'PLAN_UPGRADE');
+    assert.equal(result.upgradeCredit, 3499 + Math.round(3499 * 0.18));
+    assert.equal(result.payableAmount, result.targetTotal - result.upgradeCredit);
   });
 });

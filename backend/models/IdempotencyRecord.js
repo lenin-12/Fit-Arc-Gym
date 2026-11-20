@@ -1,28 +1,56 @@
-
 const mongoose = require('mongoose');
 
 const idempotencyRecordSchema = new mongoose.Schema(
   {
-    key: { type: String, required: true },
-    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    requestPath: String,
-    requestPayloadHash: { type: String, required: true },
+    key: {
+      type: String,
+      required: true
+    },
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+      index: true
+    },
+    requestPath: {
+      type: String,
+      required: true
+    },
+    requestPayloadHash: {
+      type: String,
+      required: true
+    },
     status: {
       type: String,
       enum: ['PROCESSING', 'COMPLETED', 'FAILED'],
-      default: 'PROCESSING'
+      default: 'PROCESSING',
+      required: true
     },
-    lockedAt: { type: Date, default: Date.now }, 
-    responseStatus: Number,
-    responseBody: mongoose.Schema.Types.Mixed
+   
+    lockedAt: {
+      type: Date,
+      default: Date.now
+    },
+    responseStatus: {
+      type: Number,
+      default: null
+    },
+    responseBody: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now,
+      expires: 86400 // TTL 24 hours
+    }
+  },
+  {
+    timestamps: true
   }
-  { timestamps: true }
 );
 
 
 idempotencyRecordSchema.index({ key: 1, userId: 1 }, { unique: true });
-
-
-idempotencyRecordSchema.index({ createdAt: 1 }, { expireAfterSeconds: 60 * 60 * 24 });
 
 module.exports = mongoose.model('IdempotencyRecord', idempotencyRecordSchema);

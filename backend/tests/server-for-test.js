@@ -1,16 +1,7 @@
-/**
- * server-for-test.js — Minimal server launcher for integration tests.
- *
- * Spawned as a child process by tests/api.test.js.
- * Writes "READY port=<N>" to stdout when the server is listening.
- * All env vars are set by the parent test process.
- */
+
 'use strict';
 
 const http = require('node:http');
-
-// These must already be set by the parent (api.test.js spawn env):
-// NODE_ENV=test, DISABLE_AUTO_CONNECT=true, OPENAI_API_KEY=''
 
 const app = require('../app');
 
