@@ -5,8 +5,9 @@ const Card = ({ weight = 'secondary', style = {}, children, ...props }) => {
   const combinedStyle = {
     background: isPrimary ? 'var(--bg-card-elevated, #222222)' : 'var(--bg-card, #181818)',
     border: isPrimary ? '1px solid var(--border-elevated, #3A3A3A)' : '1px solid var(--border, #2A2A2A)',
-    borderTop: isPrimary ? '3px solid var(--color-primary, #FFD60A)' : undefined,
-    borderRadius: '16px',
+    // Remove top border to comply with design system
+    borderTop: undefined,
+    borderRadius: '14px',
     padding: '1.6rem 1.8rem',
     boxShadow: isPrimary ? '0 12px 30px rgba(0, 0, 0, 0.6)' : '0 4px 12px rgba(0, 0, 0, 0.2)',
     boxSizing: 'border-box',
@@ -18,7 +19,7 @@ const Card = ({ weight = 'secondary', style = {}, children, ...props }) => {
   };
 
   return (
-    <div style={combinedStyle} {...props}>
+    <div className="card" style={combinedStyle} {...props}>
       {children}
     </div>
   );

@@ -4,9 +4,7 @@ const idempotencyRecordSchema = new mongoose.Schema(
   {
     key: {
       type: String,
-      required: true,
-      unique: true,
-      index: true
+      required: true
     },
     userId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -28,6 +26,11 @@ const idempotencyRecordSchema = new mongoose.Schema(
       default: 'PROCESSING',
       required: true
     },
+   
+    lockedAt: {
+      type: Date,
+      default: Date.now
+    },
     responseStatus: {
       type: Number,
       default: null
@@ -47,7 +50,7 @@ const idempotencyRecordSchema = new mongoose.Schema(
   }
 );
 
-// Compound index on key and userId
+
 idempotencyRecordSchema.index({ key: 1, userId: 1 }, { unique: true });
 
 module.exports = mongoose.model('IdempotencyRecord', idempotencyRecordSchema);

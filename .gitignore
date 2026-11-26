@@ -1,30 +1,45 @@
 # Node & Dependencies
 node_modules/
+*/node_modules/
 
-# Environment
+# Environment files
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*
+*.env
+backend/.env
+frontend/.env
+!.env.example
+!backend/.env.example
+!frontend/.env.example
 
-# Builds
+# Builds & Artifacts
 dist/
 build/
+*/dist/
+*/build/
+
+# Backend Uploads
+backend/uploads/*
+!backend/uploads/.gitkeep
 
 # OS / IDE
 .DS_Store
+*/.DS_Store
+Thumbs.db
 .vscode/
 .idea/
 
-# Debug logs
+# Logs
+logs/
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Ignored pages
+# Ignored pages & legacy scratch tests
 frontend/src/pages/SettingsPage.jsx
 archive/
-
 backend/test_mock_finish.js
 backend/test_streak.js
+
+DEPLOYMENT.md

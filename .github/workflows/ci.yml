@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  frontend:
+    name: Frontend Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+        env:
+          VITE_API_URL: /api
+
+  backend:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies (incl. mongodb-memory-server)
+        working-directory: backend
+        run: npm ci
+
+      - name: Unit tests (plan math + pricing rules, no DB)
+        working-directory: backend
+        run: npm run test:unit
+
+      - name: API tests (HTTP contract via child-process server, no DB)
+        working-directory: backend
+        run: npm run test:api
+        env:
+          NODE_ENV: test
+          DISABLE_AUTO_CONNECT: 'true'
+          JWT_SECRET: ci-test-secret-not-used-in-prod
+          MONGO_URI: mongodb://localhost:27017/fit-arc-test
+
+      - name: Wallet tests (real routes + real MongoDB replica set)
+        working-directory: backend
+        run: npm run test:wallet
+
+      - name: Wallet controller integration tests (real replica set, direct controller calls)
+        working-directory: backend
+        run: npm run test:wallet:integration
+
+      - name: Wallet logic simulation (in-memory mock, no MongoDB)
+        working-directory: backend
+        run: npm run test:wallet:simulation
