@@ -10,7 +10,9 @@
     "test:unit": "node --test tests/unit.test.js tests/pricing.test.js",
     "test:api": "node --test tests/api.test.js",
     "test:wallet": "node --test --test-concurrency=1 tests/wallet.real.test.js",
-    "test": "node --test --test-concurrency=1 tests/unit.test.js tests/pricing.test.js tests/api.test.js tests/wallet.real.test.js"
+    "test:wallet:integration": "node --test --test-concurrency=1 tests/wallet.integration.test.js",
+    "test:wallet:simulation": "node tests/wallet_system.test.js",
+    "test": "node --test --test-concurrency=1 tests/unit.test.js tests/pricing.test.js tests/api.test.js tests/wallet.real.test.js tests/wallet.integration.test.js && node tests/wallet_system.test.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

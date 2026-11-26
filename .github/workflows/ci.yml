@@ -40,10 +40,10 @@ jobs:
         env:
           VITE_API_URL: /api
 
-  
   backend:
     name: Backend Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout code
@@ -56,30 +56,31 @@ jobs:
           cache: 'npm'
           cache-dependency-path: backend/package-lock.json
 
-      - name: Install backend dependencies (including devDependencies for mongodb-memory-server)
+      - name: Install backend dependencies (incl. mongodb-memory-server)
         working-directory: backend
         run: npm ci
 
-      - name: Run pure unit tests (planUtils + pricing business logic — no network needed)
-        # Item 5a: pricing.test.js is now included in test:unit
+      - name: Unit tests (plan math + pricing rules, no DB)
         working-directory: backend
         run: npm run test:unit
 
-      - name: Run API integration tests (HTTP endpoints via child process server)
+      - name: API tests (HTTP contract via child-process server, no DB)
         working-directory: backend
-        run: node --test tests/api.test.js
+        run: npm run test:api
         env:
           NODE_ENV: test
           DISABLE_AUTO_CONNECT: 'true'
           JWT_SECRET: ci-test-secret-not-used-in-prod
           MONGO_URI: mongodb://localhost:27017/fit-arc-test
 
-      - name: Run wallet logic simulation tests (in-memory mock, no MongoDB needed)
-        # Item 5c: renamed comment to clarify this is a logic simulation, not a real DB test
+      - name: Wallet tests (real routes + real MongoDB replica set)
         working-directory: backend
         run: npm run test:wallet
 
-      - name: Run wallet integration tests (real MongoMemoryReplSet + real controller)
-        # Item 5b/5c: new real integration tests using mongodb-memory-server replica set
+      - name: Wallet controller integration tests (real replica set, direct controller calls)
         working-directory: backend
         run: npm run test:wallet:integration
+
+      - name: Wallet logic simulation (in-memory mock, no MongoDB)
+        working-directory: backend
+        run: npm run test:wallet:simulation

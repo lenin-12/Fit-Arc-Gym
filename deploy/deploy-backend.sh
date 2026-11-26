@@ -1,41 +1,6 @@
-#!/usr/bin/env bash
-# =============================================================================
-# deploy-backend.sh — Release-based backend deployment for Fit-Arc-Gym
-# =============================================================================
-# This script is uploaded to S3 alongside the tarball on every deploy, then
-# downloaded to /var/www/fit-arc-gym/shared/ and executed via SSM Run Command.
-# This guarantees the script on the instance is always current.
-#
-# Release layout (AFTER fix — backend files are at the archive root):
-#   /var/www/fit-arc-gym/
-#     releases/<git-sha>/          ← extracted release
-#       package.json               ← directly at root (not under backend/)
-#       server.js
-#       app.js
-#       deploy/                    ← deploy scripts inside the release
-#         ecosystem.config.js
-#         rollback.sh
-#         nginx.conf
-#       uploads -> ../../shared/uploads  ← symlink
-#       .env -> ../../shared/.env        ← symlink (new)
-#     shared/
-#       .env                       ← secrets, never in the repo
-#       uploads/                   ← persisted across releases
-#       rollback.sh                ← stable copy, refreshed every deploy
-#     current -> releases/<sha>    ← active release symlink
-#
-# Usage (called by CD pipeline via SSM):
-#   deploy-backend.sh <GIT_SHA> <S3_BUCKET> <S3_PREFIX>
-#
-# Environment variables (optional overrides):
-#   APP_DIR        — default /var/www/fit-arc-gym
-#   APP_USER       — default ubuntu
-#   APP_PORT       — default 5001
-#   KEEP_RELEASES  — number of releases to keep (default 5)
-# =============================================================================
 set -euo pipefail
 
-# ─── Arguments ───────────────────────────────────────────────────────────────
+
 GIT_SHA="${1:?Usage: deploy-backend.sh <GIT_SHA> <S3_BUCKET> <S3_PREFIX>}"
 S3_BUCKET="${2:?Usage: deploy-backend.sh <GIT_SHA> <S3_BUCKET> <S3_PREFIX>}"
 S3_PREFIX="${3:-deploy/releases}"
@@ -71,9 +36,7 @@ mkdir -p "${RELEASE_DIR}"
 tar -xzf "${ARTIFACT_LOCAL}" -C "${RELEASE_DIR}"
 rm -f "${ARTIFACT_LOCAL}"
 
-# ─── 3. Symlink shared .env into the release ─────────────────────────────────
-# dotenv.config() reads .env from process.cwd() (the release dir).
-# A symlink ensures secrets are sourced from shared/ without being copied.
+
 echo "=== [deploy] Symlinking shared/.env into release ==="
 ln -sfn "${SHARED_DIR}/.env" "${RELEASE_DIR}/.env"
 
@@ -87,9 +50,7 @@ echo "=== [deploy] Installing production dependencies ==="
 cd "${RELEASE_DIR}"
 npm ci --omit=dev --prefer-offline
 
-# ─── 6. Copy rollback.sh to a stable shared path ─────────────────────────────
-# This must happen BEFORE the symlink switch so rollback is always reachable
-# even if the release itself is later removed.
+
 echo "=== [deploy] Refreshing shared/rollback.sh ==="
 cp "${RELEASE_DIR}/deploy/rollback.sh" "${SHARED_DIR}/rollback.sh"
 chmod +x "${SHARED_DIR}/rollback.sh"
@@ -113,9 +74,6 @@ fi
 ln -sfn "${RELEASE_DIR}" "${CURRENT_LINK}"
 echo "${PREVIOUS_RELEASE}" > "${APP_DIR}/.previous_release"
 
-# ─── Rollback trap: fires only AFTER the symlink was switched ─────────────────
-# SWITCHED is set immediately after the ln above.  If any subsequent step
-# fails (PM2 reload, health check), the ERR trap calls rollback.sh and exits 1.
 SWITCHED=1
 
 _rollback_on_error() {
@@ -180,10 +138,10 @@ if [[ "${DB_HEALTH_OK}" -eq 0 ]]; then
     exit 1
 fi
 
-# Disarm the rollback trap — deployment succeeded
+
 trap - ERR
 
-# ─── 12. Prune old releases (keep last N) ────────────────────────────────────
+
 echo "=== [deploy] Pruning old releases (keeping ${KEEP_RELEASES}) ==="
 ls -1t "${APP_DIR}/releases" | tail -n "+$((KEEP_RELEASES + 1))" | while read -r old; do
     echo "  Removing old release: ${old}"
